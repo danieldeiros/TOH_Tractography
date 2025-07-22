@@ -1,39 +1,19 @@
 # Preliminaries
 
 ## Import necessary packages
-def imports():
-    import os
-    os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-    os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-    import pydicom
-    import subprocess
-    from pathlib import Path
-    import nibabel as nib
-    from dipy.io import read_bvals_bvecs
-    from dipy.core.gradients import gradient_table
-    from dipy.io.image import load_nifti, save_nifti
-    from dipy.reconst.shm import CsaOdfModel
-    from dipy.direction import peaks_from_model
-    from dipy.data import default_sphere
-    from dipy.segment.mask import median_otsu
-    from dipy.viz import actor, colormap, has_fury, window
-    from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
-    from dipy.reconst.dti import TensorModel
-    from dipy.tracking.utils import random_seeds_from_mask, path_length
-    from dipy.tracking.streamline import Streamlines
-    from dipy.tracking.tracker import eudx_tracking
-    from dipy.io.stateful_tractogram import Space, StatefulTractogram
-    from dipy.io.streamline import save_trk
-    from rt_utils import RTStructBuilder
-    import matplotlib.pyplot as plt
-    import numpy as np
-    from collections import defaultdict
-    import shutil
-    import re
-    import ants
+import os
+os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
+os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
+import pydicom
+import subprocess
+from pathlib import Path
+from collections import defaultdict
+import shutil
+import re
 
 ## Create necessary functions
-### Function to check if a folder path has all the required NIfTI files
+
+# Function to check if a folder path has all the required NIfTI files
 def check_nifti_folder(path, bval_bvec_expected):
     # First set flag to false
     valid_folder = False
@@ -199,7 +179,9 @@ def rs_get_info(path):
 
     return file_info, file_paths
 
+# Function to convert from DICOM to NIfTI
 def dicom_to_nifti(dicom_dir, nifti_dir):
+
     nifti_dir.mkdir(parents=True, exist_ok=True) # make folder for NIFTI if it doesnt exist yet
 
     # Create command for dcm2niix
@@ -207,13 +189,15 @@ def dicom_to_nifti(dicom_dir, nifti_dir):
     # -f %p_%s defines output file name as %p (protocol name(DICOM tag 0018, 1030)) with %s (series(DICOM tag 0020, 0011))
     # -o specifies the output directory of the NIfTI files
     cmd = [
-        "dcm2niix",
+        # "dcm2niix",
+        "V:/Common/Staff Personal Folders/DanielH/RayStation_Scripts/Tractography/Subscripts/dcm2niix/dcm2niix.exe",
         "-z", "y",
         "-f", "%p_%s",
         "-o", str(nifti_dir),
         str(dicom_dir)
     ]
 
+    print("Running command:", cmd)
     # Run this command in the terminal. Print any errors
     try:
         subprocess.run(cmd, check=True)
@@ -223,3 +207,77 @@ def dicom_to_nifti(dicom_dir, nifti_dir):
         print("Return code:", e.returncode)
 
     print("✅ DICOM files successfully converted to NIfTI")
+
+# Function to define base directory to be used
+def get_base_dir():
+    ## Base directory to be used
+    base_dir = Path("V:/Common/Staff Personal Folders/DanielH/DICOM_Files/TractographyPatient/Case 1 RS/")
+    if base_dir.is_dir():
+        print("Base folder: ", base_dir)
+        return base_dir
+    else:
+        raise ValueError(f"Could not find folder: {base_dir}")
+
+# Function to get diffusion MRIs    
+def get_relevant_files(base_dir):
+    # Define folder containing raw DICOM files
+    dicom_raw_dir = base_dir / "combined"
+
+    # Define dictionary to contain files with a given UID
+    series_counts = defaultdict(list)
+
+    FA_flag = False # Set a flag to check if FA is found in any of the folder's file's SeriesDescriptions
+
+    for file_path in dicom_raw_dir.rglob("*"): # parses every file recursively
+        if not file_path.is_file():
+            continue
+        try:
+            # Try to read as DICOM using force=True
+            ds = pydicom.dcmread(file_path, stop_before_pixels=True, force=True)
+
+            uid = getattr(ds, "SeriesInstanceUID", None) # Get UID
+            if uid: # if UID found, add to series_counts
+                series_counts[uid].append(file_path)
+
+            if "FA" in str(getattr(ds, "SeriesDescription", None)).upper():
+                FA_flag = True # Set FA flag to true if FA found in Series Description
+                
+        except Exception as e:
+            print(f"Skipping {file_path.name}: {e}")
+
+
+    # Print whether FA flag true or false
+    if FA_flag:
+        print("\n✅ FA found in SeriesDescription of at least one file in folder. Folder valid for tractography")
+    else:
+        print("\n❌ No FA found in SeriesDescription of any file in folder. Folder NOT valid for tractography")
+
+    # Print UID counts
+    print("\nFound SeriesInstanceUIDs:")
+    for uid, files in series_counts.items():
+        print(f"{uid} - {len(files)} files")
+
+    # Identify most populous UID
+    if series_counts:
+        most_populous_uid = max(series_counts, key=lambda k: len(series_counts[k]))
+        print(f"\nMost populous UID: {most_populous_uid} ({len(series_counts[most_populous_uid])} slices)")
+        relevant_files = series_counts[most_populous_uid] # assign files in most populous uid to relevant files
+        return relevant_files
+    else:
+        raise ValueError("\nNo valid DICOMs found.")
+
+# Function     
+def copy_relevant_files(base_dir, relevant_files):
+    output_dir = base_dir / "DICOM"
+    output_dir.mkdir(parents=True, exist_ok=True) # make folder for derived relevant DICOM files if it doesnt exist yet
+
+    for file_path in relevant_files:
+        try:
+            destination_path = output_dir / file_path.name # joins variables as path. (not division since path variable is involved)
+            if destination_path.is_file(): continue # Skip if path already has file
+            shutil.copy2(file_path, destination_path) # Copy file to folder if path doesn't have file
+        except Exception as e:
+            print(f"Unable to copy {file_path.name}: {e}")
+
+    return output_dir
+

@@ -124,27 +124,27 @@ with CompositeAction('Gray level threshold on PLmap image'):
         MaxNumPts = 5000 # Max number of points for simplifying contours
         AreaThreshold = 0.25 # Minimum area threshold for simplifying contours
 
-        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_5mm", Color="White", Type="Organ",
+        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_5mm", Color="White", Type="Undefined", # changing from Type="Organ" to "Undefined"
                                                 TissueName=None, RoiMaterial=None)
         retval_0.GrayLevelThreshold(Examination=examination, LowThreshold=MyThreshold, # originally LowThreshold=MyThreshold+2
                                 HighThreshold=MyThreshold+5, PetUnit="", BoundingBox=None)
 
-        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_1cm", Color="Yellow", Type="Organ",
+        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_1cm", Color="Yellow", Type="Undefined", # changing from Type="Organ" to "Undefined"
                                                 TissueName=None, RoiMaterial=None)
         retval_0.GrayLevelThreshold(Examination=examination, LowThreshold=MyThreshold+5, 
                                 HighThreshold=MyThreshold+10, PetUnit="", BoundingBox=None)
 
-        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_2cm", Color="Orange", Type="Organ",
+        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_2cm", Color="Orange", Type="Undefined", # changing from Type="Organ" to "Undefined"
                                                 TissueName=None, RoiMaterial=None)
         retval_0.GrayLevelThreshold(Examination=examination, LowThreshold=MyThreshold+5, 
                                 HighThreshold=MyThreshold+20, PetUnit="", BoundingBox=None)
 
-        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_3cm", Color="Red", Type="Organ",
+        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_3cm", Color="Red", Type="Undefined", # changing from Type="Organ" to "Undefined"
         TissueName=None, RoiMaterial=None)
         retval_0.GrayLevelThreshold(Examination=examination, LowThreshold=MyThreshold+5, 
                                 HighThreshold=MyThreshold+30, PetUnit="", BoundingBox=None)
 
-        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_4cm", Color="Purple", Type="Organ", 
+        retval_0 = case.PatientModel.CreateRoi(Name="PLmap_4cm", Color="Purple", Type="Undefined", # changing from Type="Organ" to "Undefined" 
                                         TissueName=None, RoiMaterial=None)
         retval_0.GrayLevelThreshold(Examination=examination, LowThreshold=MyThreshold+5, 
                                 HighThreshold=MyThreshold+40, PetUnit="", BoundingBox=None)
