@@ -9,15 +9,21 @@
 import time
 import zmq
 
+port = "5560"
+
 context = zmq.Context()
 socket = context.socket(zmq.REP)
-socket.bind("tcp://*:5555")
+socket.bind(f"tcp://0.0.0.0:{port}")
+# socket.bind(f"tcp://*:{port}")
 
 poller = zmq.Poller()
 poller.register(socket, zmq.POLLIN)
 
 try:
+    print("Waiting for message...")
     while True:
+        # print("Waiting for message...")
+        # print("Polling for new message...")
         socks = dict(poller.poll(timeout=100)) # Check every 100 ms
         if socket in socks:
             #  Wait for next request from client
