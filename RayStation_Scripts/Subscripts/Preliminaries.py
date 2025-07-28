@@ -36,20 +36,20 @@ def check_nifti_folder(path, bval_bvec_expected):
         if bval_bvec_expected:
             if niigz_flag and bval_flag and bvec_flag:
                 valid_folder = True # Set flag to indicate folder is valid to proceed
-                print("✅ NIfTI folder contains the necessary NIfTI files to proceed without conversion.")
+                print("[OK] NIfTI folder contains the necessary NIfTI files to proceed without conversion.")
             elif not niigz_flag and not bval_flag and not bvec_flag:
-                print("❌ NIfTI folder does not contain any of the necessary NIfTI files.")
+                print("[WARNING] NIfTI folder does not contain any of the necessary NIfTI files.")
             else:
                 incomplete = True # Set flag to indicate incomplete conversion
-                print("⚠️ NIfTI folder contains some of the necessary NIfTI files. Please delete the folder's contents to avoid errors.")
+                print("[WARNING] NIfTI folder contains some of the necessary NIfTI files. Please delete the folder's contents to avoid errors.")
         elif not bval_bvec_expected:
             if niigz_flag:
                 valid_folder = True # Set flag to indicate folder is valid to proceed
-                print("✅ NIfTI folder contains the necessary NIfTI file to proceed without conversion.")
+                print("[OK] NIfTI folder contains the necessary NIfTI file to proceed without conversion.")
             else:
-                print("❌ NIfTI folder does not contain the necessary NIfTI files.")
+                print("[WARNING] NIfTI folder does not contain the necessary NIfTI files.")
     else:
-        print("❌ NIfTI folder does not exist.")
+        print("[WARNING] NIfTI folder does not exist.")
 
     return valid_folder
 
@@ -69,12 +69,12 @@ def get_fname(path):
                 fname.append(re.sub(r"\.bvec$","", file_path.name)) 
 
     if len(fname) > 1:
-        print("❌ Too many NIfTI files in folder. Please only include NIfTI files of diffusion imaging MR scan.")
+        print("[ERROR] Too many NIfTI files in folder. Please only include NIfTI files of diffusion imaging MR scan.")
     elif len(fname) < 1:
-        print("❌ No NIfTI files found in folder.")
+        print("[ERROR] No NIfTI files found in folder.")
     else:
         fname = fname[0]
-        print("✅ File name succesfully acquired.")
+        print("[OK] File name succesfully acquired.")
 
     return fname
 
@@ -206,7 +206,7 @@ def dicom_to_nifti(dicom_dir, nifti_dir):
         print("STDERR:", e.stderr)
         print("Return code:", e.returncode)
 
-    print("✅ DICOM files successfully converted to NIfTI")
+    print("[OK] DICOM files successfully converted to NIfTI")
 
 # Function to define base directory to be used
 def get_base_dir():
@@ -248,9 +248,9 @@ def get_relevant_files(base_dir):
 
     # Print whether FA flag true or false
     if FA_flag:
-        print("\n✅ FA found in SeriesDescription of at least one file in folder. Folder valid for tractography")
+        print("\n[OK] FA found in SeriesDescription of at least one file in folder. Folder valid for tractography")
     else:
-        print("\n❌ No FA found in SeriesDescription of any file in folder. Folder NOT valid for tractography")
+        print("\n[WARNING] No FA found in SeriesDescription of any file in folder. Folder NOT valid for tractography")
 
     # Print UID counts
     print("\nFound SeriesInstanceUIDs:")

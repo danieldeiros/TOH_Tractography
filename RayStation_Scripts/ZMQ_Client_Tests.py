@@ -132,7 +132,7 @@ try:
         for request in range(10):
             print(f"Sending request {request+1} …")
             main_socket.send(b"Hello")
-            if dict(poller.poll(timeout=10000)): # wait 10 seconds
+            if dict(poller.poll(timeout=10000)): # check for reply for 10 seconds
                 #  Get the reply.
                 message = main_socket.recv().decode()
                 print(f"Received reply {request+1} [ {message} ]\n")

@@ -4,33 +4,9 @@
 import os
 os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
 os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-import pydicom
-import subprocess
-from pathlib import Path
 import nibabel as nib
-from dipy.io import read_bvals_bvecs
-from dipy.core.gradients import gradient_table
-from dipy.io.image import load_nifti, save_nifti
-from dipy.reconst.shm import CsaOdfModel
-from dipy.direction import peaks_from_model
-from dipy.data import default_sphere
-from dipy.segment.mask import median_otsu
 from dipy.viz import actor, colormap, has_fury, window
-from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
-from dipy.reconst.dti import TensorModel
-from dipy.tracking.utils import random_seeds_from_mask, path_length
-from dipy.tracking.streamline import Streamlines
-# from dipy.tracking.tracker import eudx_tracking # only available in recent DiPy
-from dipy.tracking.local_tracking import LocalTracking
-from dipy.io.stateful_tractogram import Space, StatefulTractogram
-from dipy.io.streamline import save_trk
-from rt_utils import RTStructBuilder
-import matplotlib.pyplot as plt
 import numpy as np
-from collections import defaultdict
-import shutil
-import re
-import ants
 
 # Function to visualize tracts using fury
 def show_tracts(streamlines_wm, streamlines_gtv, gtv_mask, white_matter_mask, gtv_wm_mask, external_mask, affine, interactive):
