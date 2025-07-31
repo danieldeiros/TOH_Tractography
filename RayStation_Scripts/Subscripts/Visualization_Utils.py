@@ -9,7 +9,7 @@ from dipy.viz import actor, colormap, has_fury, window
 import numpy as np
 
 # Function to visualize tracts using fury
-def show_tracts(streamlines_wm, streamlines_gtv, gtv_mask, white_matter_mask, gtv_wm_mask, external_mask, affine, interactive):
+def show_tracts(streamlines_wm, streamlines_gtv, gtv_mask, white_matter_mask, gtv_wm_mask, external_mask, affine):
     if has_fury:
 
         # streamlines_actor_wm = actor.line(
@@ -52,11 +52,11 @@ def show_tracts(streamlines_wm, streamlines_gtv, gtv_mask, white_matter_mask, gt
 
         # Save still images for this static example. Or for interactivity use
         # window.record(scene=scene, out_path="tractogram_EuDX.png", size=(800, 800))
-        if interactive:
-            window.show(scene)
+        # if interactive:
+        window.show(scene)
 
 # Function to visualize WMPL map using fury
-def show_wmpl(base_dir, external_mask, files, interactive):
+def show_wmpl(base_dir, external_mask, files):
     if has_fury:
 
         # Define path
@@ -101,6 +101,6 @@ def show_wmpl(base_dir, external_mask, files, interactive):
         scene.add(external_actor)
 
         # Show plot
-        if interactive:
-            window.show(scene)
+        # if interactive:
+        window.show(scene)
         

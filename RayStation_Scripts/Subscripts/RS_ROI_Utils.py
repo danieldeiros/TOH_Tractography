@@ -30,18 +30,21 @@ def rs_folders(base_dir):
     # Check if folders exist, if they do, check if they contain the appropriate file type
     # Delete files in folders if they don't contain what we want to prepare for the movement of files into the proper folders
     if rs_ct_dcm_dir.is_dir():
+        print("Checking for files from CT DICOM folder...")
         file_paths = rs_get_paths(rs_ct_dcm_dir)
         rs_ct_dcm_flag = True if file_paths["CT_File_Paths"] else False
         if not rs_ct_dcm_flag:
             shutil.rmtree(rs_ct_dcm_dir)
         
     if rs_mr_dcm_dir.is_dir():
+        print("Checking for files from MRI DICOM folder...")
         file_paths = rs_get_paths(rs_mr_dcm_dir)
         rs_mr_dcm_flag = True if file_paths["MR_File_Paths"] else False
         if not rs_mr_dcm_flag:
             shutil.rmtree(rs_mr_dcm_dir)
 
     if rs_rois_dir.is_dir():
+        print("Checking for files from ROI folder...")
         file_paths = rs_get_paths(rs_rois_dir)
         rs_rois_flag = True if file_paths["RS_File_Paths"] else False
         if not rs_rois_flag:
@@ -49,11 +52,8 @@ def rs_folders(base_dir):
 
     # Move files into their appropriate folders if necessary
 
-    # Set flag to false first
-    valid_folders = False
-
     if rs_ct_dcm_flag and rs_mr_dcm_flag and rs_rois_flag: # Continue if all folders valid
-        valid_folders = True
+        print("Folders located and validated.")
     else: # Create folders for missing file types
         file_paths = rs_get_paths(rs_dir) # Get all file paths from original RayStation folder
 
@@ -81,15 +81,12 @@ def rs_folders(base_dir):
                 shutil.move(file, rs_rois_dir)
             rs_rois_flag = True # Set flag to true when process complete
 
-        valid_folders = True # Set flag to true when all processes complete
+        if rs_ct_dcm_flag and rs_mr_dcm_flag and rs_rois_flag: # Continue if all folders valid
+            print("Located files and created necessary folders successfully.")
 
-    return valid_folders
 
 # Load necessary ROIs
-def load_rois(base_dir, valid_folders):
-    # First check if masks already exist
-    if not valid_folders:
-        raise ValueError("Folders containing RayStation files not validated.")
+def load_rois(base_dir):
 
     # Define folders/paths
     rs_dir = base_dir / "RayStation" # Folder containing RayStation (RS) exports
@@ -154,19 +151,22 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
 
     # First check if interpolation is needed. Flag is true when interpolation is needed
     interp_flag = True if gtv_mask.shape != white_matter_mask.shape else False
-    print(f"Interpolation flag: {interp_flag}")
+    # print(f"Interpolation flag: {interp_flag}")
 
     # Convert CT DICOM to NIfTI
     if interp_flag:
         # Must be converted from DICOM to NIfTI so that ANTs can read the files.
         # ANTs can only read NIfTI
+        print("Transformation of ROIs from CT to MR coordinates required.")
 
         rs_ct_nii_dir = rs_dir / "CT_NIfTI" # define folder path
 
         # Check if NIfTI folder has all the required files
+        print(f"Checking NIfTI folder {rs_ct_nii_dir}...")
         valid_folder = check_nifti_folder(rs_ct_nii_dir, bval_bvec_expected=False)
 
         if not valid_folder:
+            print("Converting from DICOM to NIfTI...")
             dicom_to_nifti(rs_ct_dcm_dir, rs_ct_nii_dir)
 
     # Convert MR DICOM to NIfTI
@@ -177,13 +177,16 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
     rs_mr_nii_dir = rs_dir / "MR_NIfTI" # define folder path
 
     # Check if NIfTI folder has all the required files
+    print(f"Checking NIfTI folder {rs_mr_nii_dir}...")
     valid_folder = check_nifti_folder(rs_mr_nii_dir, bval_bvec_expected=False)
 
     if not valid_folder:
+        print("Converting from DICOM to NIfTI...")
         dicom_to_nifti(rs_mr_dcm_dir, rs_mr_nii_dir)
 
     # Get affine from CT NIfTI file
     if interp_flag:
+        print("Getting file name...")
         rs_ct_nii_fname = get_fname(rs_ct_nii_dir) # Acquire file name for ct scan
         rs_ct_nii_fpath = str(rs_ct_nii_dir / (rs_ct_nii_fname + ".nii.gz")) 
 
@@ -191,6 +194,7 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
         _, affine_ct= load_nifti(rs_ct_nii_fpath, return_img = False) # only care about affine here
 
     # Getting affine from MR no matter what
+    print("Getting file name...")
     rs_mr_nii_fname = get_fname(rs_mr_nii_dir) # Acquire file name for ct scan
     rs_mr_nii_fpath = str(rs_mr_nii_dir / (rs_mr_nii_fname + ".nii.gz")) 
 
@@ -249,7 +253,22 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
 
         # Interpolation no longer needed
         interp_flag = False
+        print("Transformation successfully completed.")
 
     return gtv_mask, external_mask, brain_mask, white_matter_mask, gtv_wm_mask 
 
+def get_white_matter_mask(base_dir):
+    # Define path
+    rs_dir = base_dir / "RayStation" # Folder containing RayStation (RS) exports
+    rs_rois_nii_dir = rs_dir / "ROIs_NIfTI"
+    white_matter_mask_nii_path = rs_rois_nii_dir / "white_matter_mask.nii.gz" # define file path
+
+    if white_matter_mask_nii_path.is_file():
+        # Load white matter mask
+        white_matter_mask_nii = nib.load(white_matter_mask_nii_path); white_matter_mask = white_matter_mask_nii.get_fdata()
+        print("[OK] White matter mask located and loaded.")
+        return white_matter_mask
+    else:
+        print("[WARNING] White matter mask not found.")
+        return np.array([]) # return empty array
     

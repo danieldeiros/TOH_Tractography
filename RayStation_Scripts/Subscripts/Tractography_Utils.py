@@ -4,7 +4,7 @@
 import os
 os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
 os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-
+import nibabel as nib
 from dipy.io import read_bvals_bvecs
 from dipy.core.gradients import gradient_table
 from dipy.io.image import load_nifti
@@ -16,8 +16,8 @@ from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
 from dipy.reconst.dti import TensorModel
 from dipy.tracking.utils import random_seeds_from_mask
 from dipy.tracking.streamline import Streamlines
-# from dipy.tracking.tracker import eudx_tracking # only available in recent DiPy
-from dipy.tracking.local_tracking import LocalTracking # Use LocalTracking to replace eudx_tracking in older DiPy
+from dipy.tracking.tracker import eudx_tracking # only available in recent DiPy
+# from dipy.tracking.local_tracking import LocalTracking # Use LocalTracking to replace eudx_tracking in older DiPy
 from dipy.io.stateful_tractogram import Space, StatefulTractogram
 from dipy.io.streamline import save_trk
 import numpy as np
@@ -100,23 +100,23 @@ def streamline_gen(seeds_wm, seeds_gtv, csa_peaks, stopping_criterion, affine):
     # Initialization of eudx_tracking. The computation happens in the next step.
     # eudx_tracking replaced with LocalTracking for older versions of DiPy
     # Stuff has to be reordered! Also max_angle doesn't exist in LocalTracking
-    # streamlines_generator_wm = eudx_tracking(
-    #     seeds_wm, stopping_criterion, affine, step_size=0.5, pam=csa_peaks, max_angle=60 # paper uses max_angle of 60
-    # )
-    streamlines_generator_wm = LocalTracking(
-        csa_peaks, stopping_criterion, seeds_wm, affine, step_size=0.5
-        )
+    streamlines_generator_wm = eudx_tracking(
+        seeds_wm, stopping_criterion, affine, step_size=0.5, pam=csa_peaks, max_angle=60 # paper uses max_angle of 60
+    )
+    # streamlines_generator_wm = LocalTracking(
+    #     csa_peaks, stopping_criterion, seeds_wm, affine, step_size=0.5
+    #     )
     
     # Generate streamlines object
     streamlines_wm = Streamlines(streamlines_generator_wm)
 
     # Now creating streamlines from GTV
-    # streamlines_generator_gtv = eudx_tracking(
-    #     seeds_gtv, stopping_criterion, affine, step_size=0.5, pam=csa_peaks, max_angle=60 # paper uses max_angle of 60
-    # )
-    streamlines_generator_gtv = LocalTracking(
-        csa_peaks, stopping_criterion, seeds_gtv, affine, step_size=0.5
+    streamlines_generator_gtv = eudx_tracking(
+        seeds_gtv, stopping_criterion, affine, step_size=0.5, pam=csa_peaks, max_angle=60 # paper uses max_angle of 60
     )
+    # streamlines_generator_gtv = LocalTracking(
+    #     csa_peaks, stopping_criterion, seeds_gtv, affine, step_size=0.5
+    # )
 
     # Generate streamlines object
     streamlines_gtv = Streamlines(streamlines_generator_gtv)
@@ -137,3 +137,38 @@ def save_tracts(base_dir, streamlines_wm, hardi_img):
     # Define tractogram and save
     sft = StatefulTractogram(streamlines_wm, hardi_img, Space.RASMM)
     save_trk(sft, str(trk_path), streamlines_wm)
+
+def get_tracts(base_dir):
+    # Define paths
+    trk_dir = base_dir / "Tracts"
+    # trk_dir.mkdir(parents=True, exist_ok=True) # make folder if it doesnt exist yet
+    trk_path = trk_dir / "tractogram_EuDX.trk"
+    trk_path_gtv = trk_dir / "tractogram_GTV_EuDX.trk"
+
+    if trk_path.is_file() and trk_path_gtv.is_file():
+        # Load the streamlines from the trk file
+        trk = nib.streamlines.load(trk_path) # load trk file
+        streamlines_wm = trk.streamlines; trk_aff = trk.affine # streamlines and affine
+
+        trk_gtv = nib.streamlines.load(trk_path_gtv) # load trk file
+        streamlines_gtv = trk_gtv.streamlines; trk_gtv_aff = trk_gtv.affine # streamlines and affine
+
+        # Check that both affines are equal
+        assert np.array_equal(trk_aff, trk_gtv_aff), "Affines from white matter tracts and GTV tracts are not matching."
+
+        # Set affine matrix
+        affine = trk_aff
+        
+        tracts_flag = True # Set flag to indicate tracts exist
+
+        print("[OK] Tracts located and loaded.")
+        return streamlines_wm, streamlines_gtv, affine, tracts_flag
+    else:
+        # Set variables as empty
+        streamlines_wm = []; streamlines_gtv = []; affine = []
+
+        # Set flag to false
+        tracts_flag = False
+
+        print("[WARNING] Tracts not found.")
+        return streamlines_wm, streamlines_gtv, affine, tracts_flag
