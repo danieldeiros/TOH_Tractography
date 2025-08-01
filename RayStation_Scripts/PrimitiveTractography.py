@@ -19,16 +19,10 @@ context = zmq.Context()
 
 ## Define data port to be used with server for sending data (for fury. like streamlines, masks, and affine)
 data_port = "5564"
-# ## Define communications port to be used with server for communication purposes (when user has closed Fury window on client side)
-# comms_port = "5565"
 
 ## Define data socket
 data_socket = context.socket(zmq.REQ)
 data_socket.connect(f"tcp://localhost:{data_port}")
-
-# ## Define comms socket
-# comms_socket = context.socket(zmq.REQ)
-# comms_socket.bind(f"tcp://localhost:{comms_port}")
 
 # Create poller to wait for server
 poller = zmq.Poller()
@@ -123,34 +117,21 @@ if not tracts_flag:
 
 ## Show tracts
 if interactive:
-    # print("Showing tracts...")
-    # show_tracts(streamlines_wm, streamlines_gtv, gtv_mask, white_matter_mask, gtv_wm_mask, external_mask, affine, interactive)
     fury_data = { # Define all we need to show on Fury in a dictionary
-        "streamlines_wm": streamlines_wm,
-        "streamlines_gtv": streamlines_gtv,
-        "gtv_mask": gtv_mask,
-        "white_matter_mask": white_matter_mask,
-        "gtv_wm_mask": gtv_wm_mask,
-        "external_mask": external_mask,
-        "affine": affine
+        "base_dir": str(base_dir)
     }
     print("Showing tracts...")
-    data_socket.send(pickle.dumps(fury_data)) # Send data over via socket
-    print("Data sent from PrimitiveTractography to server")
-    # print("Data sent to server from PrimitiveTractography")
-    # comms_socket.send_string("Data sent.") # Sent data
+    data_socket.send_json(fury_data) # Send data over via socket
     received_flag = False # set flag to false until we receive confirmation from the server that the client has closed the Fury window
 
 # WMPL
 
-## Create WMPL map
-print("Creating WMPL map...")
+## Create WMPL map (loads if already saved before)
 wmpl = get_wmpl(base_dir)
-print("WMPL map successfully created.")
 
 ## Save WMPL map as a DICOM
 print("Saving WMPL map as a DICOM...")
-files = save_wmpl_dicom(base_dir, wmpl) # return MR files used to save PL map
+save_wmpl_dicom(base_dir, wmpl)
 print("WMPL map saved as DICOM successfully")
 
 ## Show WMPL map
@@ -164,17 +145,12 @@ if interactive:
                 break
 
     print("Showing WMPL map...")
-    # show_wmpl(base_dir, external_mask, files, interactive)
 
     fury_data = { # Define all we need to show on Fury in a dictionary
-        "base_dir": base_dir,
-        "external_mask": external_mask,
-        "files": files
+        "base_dir": str(base_dir)
     }
 
-    data_socket.send(pickle.dumps(fury_data)) # Send data over via socket
-    print("Data sent from PrimitiveTractography to server")
-    # comms_socket.send_string("Data sent.") # Sent data
+    data_socket.send_json(fury_data) # Send data over via socket
     received_flag = False # set flag to false until we receive confirmation from the server that the client has closed the Fury window
 
     # Wait till we receive confirmation from client that the Fury window has been closed

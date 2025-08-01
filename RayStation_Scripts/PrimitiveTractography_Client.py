@@ -8,6 +8,7 @@ import threading
 import uuid
 import sys
 import pickle
+from pathlib import Path
 
 # Create context
 context = zmq.Context()
@@ -134,6 +135,7 @@ def receive_stream():
                 print(f"[{datetime.datetime.now()}] REMOTE:", msg["data"])
             elif msg["type"] == "done":
                 print(f"[{datetime.datetime.now()}] Script finished with code {msg['returncode']}")
+                time.sleep(0.1) # Wait for main thread to say completed succesfully or with error
                 print("\nStopping the program.")
                 # Close sockets and terminate context
                 global main_socket_active 
@@ -149,7 +151,7 @@ def receive_stream():
                 # context.term()
                 # sys.exit()
                 # break
-        time.sleep(1) # Wait a bit to remove weird errors when shutting down
+        time.sleep(0.1) # Wait a bit to remove weird errors when shutting down
 
 # Create poller for main socket
 poller = zmq.Poller()
@@ -173,16 +175,12 @@ def fury_data_recv():
     while data_socket_active:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
             # print("Unpickling stuff!")
-            data = pickle.loads(data_socket.recv()) # receive data and unpickle
+            # data = pickle.loads(data_socket.recv()) # receive data and unpickle
+            # print("Received data on client!")
+            data = data_socket.recv_json()  # receive data
 
             # Assign variables from data dictionary
-            streamlines_wm = data["streamlines_wm"]
-            streamlines_gtv = data["streamlines_gtv"]
-            gtv_mask = data["gtv_mask"]
-            white_matter_mask = data["white_matter_mask"]
-            gtv_wm_mask = data["gtv_wm_mask"]
-            external_mask = data["external_mask"]
-            affine = data["affine"]
+            base_dir = Path(data["base_dir"])
 
             # Add RayStation scripts folder to path
             rs_scripts_path = r"V:\Common\Staff Personal Folders\DanielH\RayStation_Scripts\Tractography".replace("\\","/")
@@ -192,7 +190,7 @@ def fury_data_recv():
             from Subscripts.Visualization_Utils import show_tracts, show_wmpl 
 
             # Show tracts
-            show_tracts(streamlines_wm, streamlines_gtv, gtv_mask, white_matter_mask, gtv_wm_mask, external_mask, affine)
+            show_tracts(base_dir)
             
             # Tell server Fury window closed
             data_socket.send_string("Data received. Fury window closed")
@@ -200,16 +198,16 @@ def fury_data_recv():
             # Wait for data from server to show WMPL map
             while data_socket_active:
                 if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-                    data = data_socket.recv() # receive data and unpickle
-                    data = pickle.loads(data)
+                    # data = data_socket.recv() # receive data and unpickle
+                    # data = pickle.loads(data)
+                    data = data_socket.recv_json()  # receive data
                     
                     # Assign variables from data dictionary
-                    base_dir = data["base_dir"]
-                    external_mask = data["external_mask"]
-                    files = data["files"]
+                    base_dir = Path(data["base_dir"])
+                    # slice_thickness = data["slice_thickness"]
                     
                     # Show WMPL map
-                    show_wmpl(base_dir, external_mask, files)
+                    show_wmpl(base_dir)
 
                     # Tell server Fury window closed
                     data_socket.send_string("Data received. Fury window closed")

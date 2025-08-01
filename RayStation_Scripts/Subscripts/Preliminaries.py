@@ -119,7 +119,7 @@ def rs_get_paths(path):
     return file_paths
 
 # Function to get exported RayStation files
-def rs_get_info(path):
+def rs_get_info(path, prints=True):
 
     # Define lists to add file paths to
     CT_File_Paths = []
@@ -159,7 +159,8 @@ def rs_get_info(path):
             except:
                 print(f"Skipped invalid DICOM: {file.name}")
 
-    print(f"Found {len(CT_Files)+len(RD_Files)+len(RP_Files)+len(RS_Files)+len(MR_Files)} valid DICOM files")
+    if prints:
+        print(f"Found {len(CT_Files)+len(RD_Files)+len(RP_Files)+len(RS_Files)+len(MR_Files)} valid DICOM files")
 
     file_paths = {
         "CT_File_Paths" : CT_File_Paths,

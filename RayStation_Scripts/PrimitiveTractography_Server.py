@@ -109,7 +109,7 @@ def stream():
             main_socket.send(b"FINISHED")
             stream_polling = False # break out of loop
         else:
-            print("Error in tractography script.")
+            print("\nError in tractography script.")
             main_socket.send(b"ERROR")
             stream_polling = False # break out of loop
 
@@ -129,11 +129,11 @@ def data_relay():
     while data_polling:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
             # print("Data found in poller!")
-            data = local_data_socket.recv() # receive data from PrimitiveTractography
+            data = local_data_socket.recv_json() # receive data from PrimitiveTractography
             # print("Data received from PrimitiveTractography")
 
             # Send data to client
-            data_socket.send(data)
+            data_socket.send_json(data)
             # print("Data sent from server to client!")
 
             # Wait for client to receive
