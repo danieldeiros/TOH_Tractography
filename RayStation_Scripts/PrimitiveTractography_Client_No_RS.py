@@ -10,17 +10,17 @@ import sys
 import pickle
 from pathlib import Path
 import json
-from connect import *
+# from connect import *
 
 # Get patient parameters
-patient = get_current("Patient")
+# patient = get_current("Patient")
 
 # Create context
 context = zmq.Context()
 
 # Define client ID
-client_id = str(patient.PatientID) + "-" + str(uuid.uuid4())[:8] # unique short ID
-# client_id = str(uuid.uuid4())[:8] # unique short ID
+# client_id = str(patient.PatientID) + "-" + str(uuid.uuid4())[:8] # unique short ID
+client_id = str(uuid.uuid4())[:8] # unique short ID
 
 # Define ports
 server_ip = "10.244.196.191"

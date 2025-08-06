@@ -8,6 +8,7 @@ import threading
 import subprocess
 import sys
 import pickle
+import json
 
 # Define port numbers
 main_port = "5560"
@@ -20,7 +21,7 @@ local_data_port = "5564"
 context = zmq.Context()
 
 # Main socket for work
-main_socket = context.socket(zmq.REP)
+main_socket = context.socket(zmq.ROUTER)
 main_socket.bind(f"tcp://*:{main_port}")
 
 # Heartbeat socket
@@ -32,7 +33,7 @@ stream_socket = context.socket(zmq.PUSH)
 stream_socket.bind(f"tcp://*:{stream_port}")
 
 # Data socket
-data_socket = context.socket(zmq.REP)
+data_socket = context.socket(zmq.ROUTER)
 data_socket.bind(f"tcp://*:{data_port}")
 
 # Local data socket
@@ -96,22 +97,27 @@ heartbeat_thread.start()
 
 stream_polling = True # Set flag to true first so that it's defined
 # define function to relay terminal outputs from PrimitiveTractography
-def stream():
+def stream(identity):
     global stream_polling
     while stream_polling:
         for line in iter(proc.stdout.readline, ''):
             stream_socket.send_json({"type": "stdout", "data": line.strip()})
+            if not stream_polling:
+                stream_socket.send_json({"type": "stdout", "data": "Connection lost!"}) # tell user connection lost
+                return # end daemon function
             # time.sleep(0.1) # wait a bit
         stream_socket.send_json({"type": "done", "returncode": proc.wait()})
 
         if proc.wait() == 0:
             print("\nTractography completed succesfully.")
-            main_socket.send(b"FINISHED")
-            stream_polling = False # break out of loop
+            main_socket.send_multipart([identity, b'', b"FINISHED"])
+            # stream_polling = False # break out of loop
+            return # end of function
         else:
             print("\nError in tractography script.")
-            main_socket.send(b"ERROR")
-            stream_polling = False # break out of loop
+            main_socket.send_multipart([identity, b'', b"ERROR"])
+            # stream_polling = False # break out of loop
+            return # end of function
 
 data_polling = True # Set flag to true first so that it's defined
 # Define function to relay data from PrimitiveTractography and relay back when the Fury window is closed
@@ -120,7 +126,9 @@ def data_relay():
     while data_polling:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
             # print("Data found in poller!")
-            if data_socket.recv_string() == "Ready":
+            ds_identity, _, ds_msg = data_socket.recv_multipart()
+            ds_msg = ds_msg.decode()
+            if ds_msg == "Ready":
                 # print("Client ready for information")
                 break # continue to poll for data now if received confirmation from client
         time.sleep(1) # wait a bit... removes weird error messages
@@ -132,21 +140,24 @@ def data_relay():
             data = local_data_socket.recv_json() # receive data from PrimitiveTractography
             # print("Data received from PrimitiveTractography")
 
+            data = json.dumps(data).encode('utf-8') # encode data in bytes
+
             # Send data to client
-            data_socket.send_json(data)
+            data_socket.send_multipart([ds_identity, b'', data])
             # print("Data sent from server to client!")
 
             # Wait for client to receive
             while data_polling:
                 if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-                    message = data_socket.recv_string()
-                    if message == "Data received. Fury window closed":
-                        local_data_socket.send_string(message) # send message to PrimitiveTractography
+                    ds_identity, _, ds_msg= data_socket.recv_multipart()
+                    ds_msg = ds_msg.decode()
+                    if ds_msg == "Data received. Fury window closed":
+                        local_data_socket.send_string(ds_msg) # send message to PrimitiveTractography
                         cnt += 1 # add to counter
                         if cnt<2:
                             break # return to first while loop
                         elif cnt >= 2:
-                            data_socket.send_string("Void") # Send void so we can go back to receiving
+                            # data_socket.send_string("Void") # Send void so we can go back to receiving
                             return # exit function
                 time.sleep(1) # wait a bit... removes weird error messages
 
@@ -158,10 +169,12 @@ try:
         socks = dict(main_poller.poll(timeout=100)) # Check for 100 ms
         if main_socket in socks:
             #  Wait for next request from client
-            message = main_socket.recv().decode()
+            # message = main_socket.recv().decode()
+            identity, _, message = main_socket.recv_multipart()
+            message = message.decode()
             if message == "READY":
                 # Let client know server is ready
-                main_socket.send(b"READY")
+                main_socket.send_multipart([identity, b'', b"READY"])
             elif message == "RUN":
                 # Start tractography script
                 path = "V:/Common/Staff Personal Folders/DanielH/RayStation_Scripts/Tractography/PrimitiveTractography.py"
@@ -177,7 +190,7 @@ try:
                 
                 data_polling = True # Set flag to true first 
 
-                threading.Thread(target=stream, daemon=True).start() # start streaming terminal output thread
+                threading.Thread(target=stream, args=(identity,), daemon=True).start() # start streaming terminal output thread
 
                 threading.Thread(target=data_relay, daemon=True).start() # start data relay thread
             else:
