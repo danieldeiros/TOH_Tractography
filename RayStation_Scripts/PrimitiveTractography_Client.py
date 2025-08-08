@@ -10,17 +10,57 @@ import sys
 import pickle
 from pathlib import Path
 import json
-from connect import *
 
-# Get patient parameters
-patient = get_current("Patient")
+# Add RayStation scripts folder to path
+rs_scripts_path = r"V:\Common\Staff Personal Folders\DanielH\RayStation_Scripts\Tractography".replace("\\","/")
+sys.path.append(rs_scripts_path)
+
+# Import necessary functions
+from Subscripts.Visualization_Utils import show_tracts, show_wmpl 
+from Subscripts.Preliminaries import get_base_dir
+from Subscripts.RS_Utils import get_img_registration, copy_roi_geometries, export_rs_stuff, check_rois
+
+## Define patient folder path
+print("Defining base folder...")
+base_dir = get_base_dir()
+
+# Check if we can import from connect (RayStation) if we can't then we aren't calling from RayStation
+try:
+    # Import RayStation
+    from connect import *
+    # Set flag to true
+    rs_flag = True
+    # Environment setup parameters
+    patient = get_current("Patient")
+    case = get_current("Case")
+except:
+    # Set flag to false
+    rs_flag = False
+    pass # just carry forward
+
+# Check if ROIs already saved
+rois_flag = check_rois(base_dir)
+if not rois_flag:
+    if rs_flag:
+        # Obtain image registration required
+        case = get_img_registration(case)
+
+        # Copy ROI geometries from CT to MR
+        copy_roi_geometries(case)
+
+        # Export RTStruct with ROIs
+        export_rs_stuff(patient, case, base_dir)
+    elif not rs_flag:
+        raise ValueError(f"No RayStation files found in {Path(base_dir / 'RayStation')}")
 
 # Create context
 context = zmq.Context()
 
 # Define client ID
-client_id = str(patient.PatientID) + "-" + str(uuid.uuid4())[:8] # unique short ID
-# client_id = str(uuid.uuid4())[:8] # unique short ID
+if rs_flag:
+    client_id = str(patient.PatientID) + "-" + str(uuid.uuid4())[:8] # unique short ID
+else:
+    client_id = str(uuid.uuid4())[:8] # unique short ID
 
 # Define ports
 server_ip = "10.244.196.191"
@@ -110,7 +150,10 @@ class HeartbeatManager:
                         main_socket_active = False # exit main socket loop
                         stream_socket_active = False # exit stream socket loop
                         data_socket_active = False # exit data socket loop
-                        time.sleep(10) # wait for main socket to be done trying to receive 
+                        # time.sleep(0.1) # wait a bit
+
+                        return # exit daemon function
+                        # time.sleep(3) # wait for main socket to be done trying to receive 
                         # Let main socket be the one to close sockets
 
                         # main_socket.close()
@@ -142,14 +185,14 @@ def receive_stream():
             elif msg["type"] == "done":
                 print(f"[{datetime.datetime.now()}] Script finished with code {msg['returncode']}")
                 time.sleep(0.1) # Wait for main thread to say completed succesfully or with error
-                print("\nStopping the program.")
+                print(f"\n[{datetime.datetime.now()}] Stopping the program.")
                 # Close sockets and terminate context
                 global main_socket_active 
                 global data_socket_active
                 main_socket_active = False # exit main socket loop
                 stream_socket_active = False # exit stream socket loop
                 data_socket_active = False # exit data socket loop
-                time.sleep(10) # wait for main socket to be done trying to receive 
+                # time.sleep(5) # wait for main socket to be done trying to receive 
                 # Let main socket be the one to close sockets
 
                 return # end function
@@ -175,10 +218,12 @@ data_poller.register(data_socket, zmq.POLLIN)
 
 # Define function to receive data and plot Fury
 data_socket_active = True
-def fury_data_recv():
+def data_dealer():
     global data_socket_active
-     # First send message to activate socket (this is client so we are REQ so need to send first)
-    data_socket.send_multipart([b'', b"Ready"])
+    global rs_flag
+     # First send base directory
+    base_dir_json = json.dumps(base_dir).encode('utf-8')
+    data_socket.send_multipart([b'', base_dir_json])
     
     while data_socket_active:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
@@ -190,13 +235,6 @@ def fury_data_recv():
 
             # Assign variables from data dictionary
             base_dir = Path(data["base_dir"])
-
-            # Add RayStation scripts folder to path
-            rs_scripts_path = r"V:\Common\Staff Personal Folders\DanielH\RayStation_Scripts\Tractography".replace("\\","/")
-            sys.path.append(rs_scripts_path)
-
-            # Make imports
-            from Subscripts.Visualization_Utils import show_tracts, show_wmpl 
 
             # Show tracts
             show_tracts(base_dir)
@@ -230,32 +268,32 @@ def fury_data_recv():
         time.sleep(1) # Wait 1 second to avoid error messages when exiting program
 
 try:
-    print("\nSending request to server...")
+    print(f"\n[{datetime.datetime.now()}] Sending request to server...")
     main_socket.send_multipart([b'', b"READY"])
     main_socket_active = True
     while main_socket_active:
-        if dict(poller.poll(timeout=5000)): # Check for reply for 5 seconds
+        if dict(poller.poll(timeout=3000)): # Check for reply for 3 seconds
             #  Get the reply.
             _, message = main_socket.recv_multipart()
             message = message.decode()
             if message == "READY":
-                print("\nServer available. Starting tractography...")
+                print(f"\n[{datetime.datetime.now()}] Server available. Starting tractography...")
                 main_socket.send_multipart([b'', b"RUN"])
                 stream_socket_active = True
                 threading.Thread(target=receive_stream, daemon=True).start() # start to receive from stream socket
-                threading.Thread(target=fury_data_recv, daemon=True).start() # start to get ready to receive fury data
+                threading.Thread(target=data_dealer, daemon=True).start() # start to send/receive data
                 while main_socket_active:
                     if dict(poller.poll(timeout=1000)): # Check for reply for 1 second
                         _, message = main_socket.recv_multipart()
                         message = message.decode()
                         if message == "FINISHED":
-                            print("\nTractography and white matter path length map succesfully completed!")
+                            print(f"[{datetime.datetime.now()}] Tractography and white matter path length map succesfully completed!")
                             break
                         elif message == "ERROR":
-                            print("\nError during tractography.")
+                            print(f"[{datetime.datetime.now()}] [ERROR] Error during tractography.")
                             break
                         else:
-                            print("\nUnexpected returned message while performing tractography.")
+                            print(f"[{datetime.datetime.now()}] Unexpected returned message while performing tractography: {message}.")
                             break
             else:
                 print(f"Unexpected returned message prior to commencing tractography: {message}")
@@ -264,7 +302,7 @@ except Exception as e:
         print(f"Error: {e}")
 finally:
     # Close sockets and terminate context
-    time.sleep(5) # Wait a bit for threads to stop polling
+    time.sleep(3) # Wait a bit for threads to stop polling
 
     main_socket.close()
     stream_socket.close()

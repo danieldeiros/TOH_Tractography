@@ -83,6 +83,36 @@ def show_tracts(base_dir):
         scene.add(external_actor)
         # scene.add(brain_actor)
 
+        # Define colours to show
+        colours = {
+            'GTV' : (1,0.1,0.1), # red
+            'External' : (0.676, 0.844, 0.898) # light blue
+        }
+
+        # Add custom legend (text + coloured squares)
+        legend_pos = np.array([150, 30, 0])
+        spacing = 20
+
+        for i, (label, colour) in enumerate(colours.items()):
+            # Add a small square actor as color indicator
+            square_actor = actor.sphere(centers=np.array([legend_pos + [0, -i*spacing, -i*spacing]]),
+                                        colors=np.array([colour]),
+                                        radii=10)
+            scene.add(square_actor)
+            
+            # Add the label as text next to it
+            # direction=None makes label follow camera
+            text_actor = actor.vector_text(text=label, pos=legend_pos + [100, -i*spacing, -i*spacing], scale=(20,20,20), direction=None, align_center=False, extrusion=10)
+            scene.add(text_actor)
+
+        # Add informational text
+        info_text = "In tractography, the direction of streamlines is labelled by red, green, and blue, where..." \
+                    "\nRed indicates directions in the X axis: right to left or left to right." \
+                    "\nGreen indicates directions in the Y axis: posterior to anterior or from anterior to posterior." \
+                    "\nBlue indicates directions in the Z axis: inferior to superior or vice versa."
+        info_actor = actor.vector_text(text=info_text, pos=legend_pos + [100,-100,-100], scale=(5,5,5), direction=None, align_center=False, extrusion=10)
+        scene.add(info_actor)
+
         # Save still images for this static example. Or for interactivity use
         # window.record(scene=scene, out_path="tractogram_EuDX.png", size=(800, 800))
         # if interactive:
@@ -145,7 +175,7 @@ def show_wmpl(base_dir):
 
         # Create actor for GTV
         gtv_actor = actor.contour_from_roi(
-            gtv_mask, affine=affine, opacity=0.75, color = (0,0,0) # black
+            gtv_mask, affine=affine, opacity=0.95, color = (0,0,0) # black
         )
 
         # Create the 3D display.

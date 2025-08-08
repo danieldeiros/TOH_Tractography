@@ -10,6 +10,7 @@ from Subscripts.Visualization_Utils import show_tracts, show_wmpl
 
 # Import packages
 import zmq
+import json
 import pickle
 
 # Preliminaries
@@ -21,16 +22,40 @@ context = zmq.Context()
 data_port = "5564"
 
 ## Define data socket
-data_socket = context.socket(zmq.REQ)
+data_socket = context.socket(zmq.DEALER)
 data_socket.connect(f"tcp://localhost:{data_port}")
 
 # Create poller to wait for server
 poller = zmq.Poller()
 poller.register(data_socket, zmq.POLLIN)
 
-## Define patient folder path
-print("Defining base folder...")
-base_dir = get_base_dir()
+# # Get RS data if available
+# while True:
+#     if dict(poller.poll(timeout=3000)): # check for message for 3 seconds
+#         ds_identity, _, ds_msg = data_socket.recv_multipart()
+#         ds_msg = ds_msg.decode()
+#         if ds_msg == "RS data available":
+#             while True: # wait for data to arrive
+#                 if dict(poller.poll(timeout=3000)): # check for message for 3 seconds
+#                     ds_identity, _, trans_matrix = data_socket.recv_multipart()
+#                     trans_matrix = pickle.loads(trans_matrix) # decode data
+#                                                 # .decode('utf-8')) # decode data
+#                     print("RayStation data acquired.")
+#                     break # exit while loop
+#         elif ds_msg == "RS data not available":
+#             print("No RayStation data available.")
+#         break # exit while loop
+
+# ## Define patient folder path
+# print("Defining base folder...")
+# base_dir = get_base_dir()
+
+# Get base directory from client
+while True:
+    if dict(poller.poll(timeout=3000)): # check for message for 3 seconds
+        ds_identity, _, base_dir = data_socket.recv_multipart() # receive data
+        base_dir = json.loads(base_dir.decode('utf-8')) # decode data
+        break # exit while loop
 
 ## Set interactivity to True or False
 interactive = True
@@ -121,7 +146,8 @@ if interactive:
         "base_dir": str(base_dir)
     }
     print("Showing tracts...")
-    data_socket.send_json(fury_data) # Send data over via socket
+    fury_data = json.dumps(fury_data).encode('utf-8') # encode data in bytes
+    data_socket.send_multipart([ds_identity, b'', fury_data]) # Send data over via socket
     received_flag = False # set flag to false until we receive confirmation from the server that the client has closed the Fury window
 
 # WMPL
@@ -139,7 +165,8 @@ if interactive:
     # Wait till we receive confirmation from client that the Fury window has been closed
     while not received_flag:
         if dict(poller.poll(timeout=3000)):
-            message = data_socket.recv_string() # receive string
+            ds_identity, _, message = data_socket.recv_multipart() # receive string
+            message = message.decode()
             if message == "Data received. Fury window closed":
                 received_flag = True
                 break
@@ -149,14 +176,15 @@ if interactive:
     fury_data = { # Define all we need to show on Fury in a dictionary
         "base_dir": str(base_dir)
     }
-
-    data_socket.send_json(fury_data) # Send data over via socket
+    fury_data = json.dumps(fury_data).encode('utf-8') # encode data in bytes
+    data_socket.send_multipart([ds_identity, b'', fury_data]) # Send data over via socket
     received_flag = False # set flag to false until we receive confirmation from the server that the client has closed the Fury window
 
     # Wait till we receive confirmation from client that the Fury window has been closed
     while not received_flag:
         if dict(poller.poll(timeout=3000)):
-            message = data_socket.recv_string() # receive string
+            ds_identity, _, message = data_socket.recv_multipart() # receive string
+            message = message.decode()
             if message == "Data received. Fury window closed":
                 received_flag = True
                 break

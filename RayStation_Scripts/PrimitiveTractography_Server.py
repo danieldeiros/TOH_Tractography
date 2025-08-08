@@ -37,7 +37,7 @@ data_socket = context.socket(zmq.ROUTER)
 data_socket.bind(f"tcp://*:{data_port}")
 
 # Local data socket
-local_data_socket = context.socket(zmq.REP)
+local_data_socket = context.socket(zmq.DEALER)
 local_data_socket.bind(f"tcp://*:{local_data_port}")
 
 # Define main poller
@@ -86,9 +86,11 @@ def monitor_heartbeats():
             for client_id in to_remove:
                 del last_heartbeat[client_id]
 
-            time.sleep(1) # wait a bit... removes weird error messages
+            time.sleep(0.1) # wait a bit... removes weird error messages
         except Exception as e:
             print(f"[{datetime.datetime.now()}] [Heartbeat] ZMQ error: {e}")
+    
+    return # exit daemon function if not heartbeat polling
 
 # Start heartbeat monitoring thread
 heartbeat_polling = True # Set flag to true
@@ -118,29 +120,44 @@ def stream(identity):
             main_socket.send_multipart([identity, b'', b"ERROR"])
             # stream_polling = False # break out of loop
             return # end of function
+        
+    return # exit function if not stream polling
 
 data_polling = True # Set flag to true first so that it's defined
 # Define function to relay data from PrimitiveTractography and relay back when the Fury window is closed
 def data_relay():
     global data_polling # Create flag to indicate when we are polling. Allows us to exit program safely with no errors
+    global trans_matrix # trans matrix for RayStation
     while data_polling:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-            # print("Data found in poller!")
-            ds_identity, _, ds_msg = data_socket.recv_multipart()
-            ds_msg = ds_msg.decode()
-            if ds_msg == "Ready":
-                # print("Client ready for information")
-                break # continue to poll for data now if received confirmation from client
-        time.sleep(1) # wait a bit... removes weird error messages
+            # Receive base directory from client
+            ds_identity, _, base_dir = data_socket.recv_multipart()
+            # Send base directory to server
+            local_data_socket.send_multipart([ds_identity, b'', base_dir])
+            break # continue to poll for Fury data now
+            # ds_msg = ds_msg.decode()
+            # print(f'{ds_msg}')
+            # if ds_msg == "RS data available":
+            #     local_data_socket.send_multipart([ds_identity, b'', ds_msg.encode('utf-8')]) # Tell PrimitiveTractography we have RS data available
+            #     while data_polling:
+            #         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
+            #             ds_identity, _, trans_matrix = data_socket.recv_multipart() # receive trans matrix from Raystation
+            #             local_data_socket.send_multipart([ds_identity, b'', trans_matrix]) # send trans matrix to PrimitiveTractography
+            #             break # exit while loop
+            #     break # exit while loop
+            # elif ds_msg == "RS data not available":
+            #     local_data_socket.send_multipart([ds_identity, b'', ds_msg.encode('utf-8')]) # Tell PrimitiveTractography we do not have RS data available
+            #     break # continue to poll for Fury data now
+        time.sleep(0.1) # wait a bit... removes weird error messages
 
     cnt = 0 # Set counter to exit after 2
     while data_polling:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
             # print("Data found in poller!")
-            data = local_data_socket.recv_json() # receive data from PrimitiveTractography
+            ds_identity, _, data = local_data_socket.recv_multipart() # receive data from PrimitiveTractography
             # print("Data received from PrimitiveTractography")
 
-            data = json.dumps(data).encode('utf-8') # encode data in bytes
+            # data = json.dumps(data).encode('utf-8') # encode data in bytes
 
             # Send data to client
             data_socket.send_multipart([ds_identity, b'', data])
@@ -152,21 +169,22 @@ def data_relay():
                     ds_identity, _, ds_msg= data_socket.recv_multipart()
                     ds_msg = ds_msg.decode()
                     if ds_msg == "Data received. Fury window closed":
-                        local_data_socket.send_string(ds_msg) # send message to PrimitiveTractography
+                        local_data_socket.send_multipart([ds_identity, b'', ds_msg.encode('utf-8')]) # send message to PrimitiveTractography
                         cnt += 1 # add to counter
                         if cnt<2:
                             break # return to first while loop
                         elif cnt >= 2:
                             # data_socket.send_string("Void") # Send void so we can go back to receiving
                             return # exit function
-                time.sleep(1) # wait a bit... removes weird error messages
+                time.sleep(0.1) # wait a bit... removes weird error messages
 
-        time.sleep(1) # wait a bit... removes weird error messages
+        time.sleep(0.1) # wait a bit... removes weird error messages
+    return # exit function if not data polling
 
 try:
     print("\nWaiting for client message...")
     while True:
-        socks = dict(main_poller.poll(timeout=100)) # Check for 100 ms
+        socks = dict(main_poller.poll(timeout=3000)) # Check for 3 seconds
         if main_socket in socks:
             #  Wait for next request from client
             # message = main_socket.recv().decode()
@@ -176,6 +194,7 @@ try:
                 # Let client know server is ready
                 main_socket.send_multipart([identity, b'', b"READY"])
             elif message == "RUN":
+
                 # Start tractography script
                 path = "V:/Common/Staff Personal Folders/DanielH/RayStation_Scripts/Tractography/PrimitiveTractography.py"
                 # Call tractography script with python venv
@@ -190,9 +209,9 @@ try:
                 
                 data_polling = True # Set flag to true first 
 
-                threading.Thread(target=stream, args=(identity,), daemon=True).start() # start streaming terminal output thread
-
                 threading.Thread(target=data_relay, daemon=True).start() # start data relay thread
+
+                threading.Thread(target=stream, args=(identity,), daemon=True).start() # start streaming terminal output thread
             else:
                 print(f"Unexpected message received from client")
 except KeyboardInterrupt:
@@ -201,7 +220,7 @@ except KeyboardInterrupt:
         heartbeat_polling = False
         data_polling = False
         stream_polling = False
-        time.sleep(5) # Wait until we aren't polling
+        time.sleep(3) # Wait until we aren't polling
 
 finally:
     # Close sockets and terminate context
