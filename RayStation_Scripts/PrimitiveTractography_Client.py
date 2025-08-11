@@ -42,14 +42,10 @@ except:
 rois_flag = check_rois(base_dir)
 if not rois_flag:
     if rs_flag:
-        # Obtain image registration required
-        case = get_img_registration(case)
 
-        # Copy ROI geometries from CT to MR
-        copy_roi_geometries(case)
-
-        # Export RTStruct with ROIs
+        # Export RTStruct with ROIs, CT scans and MRIs with FA
         export_rs_stuff(patient, case, base_dir)
+
     elif not rs_flag:
         raise ValueError(f"No RayStation files found in {Path(base_dir / 'RayStation')}")
 
@@ -129,11 +125,12 @@ class HeartbeatManager:
             try:
                 # Send string
                 self.socket.send_string(f"PING:{self.client_id}")
-                if dict(self.poller.poll(timeout=5000)): # Check for heartbeat for 5 seconds
+                if dict(self.poller.poll(timeout=15000)): # Check for heartbeat for 15 seconds
                     reply = self.socket.recv_string() # Receive string
                     if reply == "PONG":
                         # print(f"[{datetime.datetime.now()}] [Heartbeat] Received from server")
                         self.connection_disconnects = 0 # Reset disconnects to 0
+                        time.sleep(10) # Wait 10 seconds between heartbeats
                     else:
                         print(f"[{datetime.datetime.now()}] [Heartbeat] Received from unexpected reply from server: {reply}")
                 else:
@@ -162,7 +159,6 @@ class HeartbeatManager:
                         # sys.exit()
                     self._recreate_socket()
 
-                time.sleep(10) # Wait 10 seconds between heartbeats
             except zmq.ZMQError as e:
                 # Unexpected error. Recreate socket
                 print(f"[{datetime.now()}] [Heartbeat] ZMQ error: {e}")
@@ -221,8 +217,9 @@ data_socket_active = True
 def data_dealer():
     global data_socket_active
     global rs_flag
-     # First send base directory
-    base_dir_json = json.dumps(base_dir).encode('utf-8')
+    global base_dir
+    # First send base directory
+    base_dir_json = json.dumps(str(base_dir)).encode('utf-8')
     data_socket.send_multipart([b'', base_dir_json])
     
     while data_socket_active:

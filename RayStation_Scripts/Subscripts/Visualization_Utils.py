@@ -39,11 +39,13 @@ def show_tracts(base_dir):
         gtv_mask_nii_path = rs_rois_nii_dir / "gtv_mask.nii.gz" # define file path
         external_mask_nii_path = rs_rois_nii_dir / "external_mask.nii.gz" # define file path
         brain_mask_nii_path = rs_rois_nii_dir / "brain_mask.nii.gz" # define file path
+        white_matter_mask_nii_path = rs_rois_nii_dir / "white_matter_mask.nii.gz" # define file path
 
         # Get masks from pre-defined files
         gtv_mask_nii = nib.load(gtv_mask_nii_path); gtv_mask = gtv_mask_nii.get_fdata()
         external_mask_nii = nib.load(external_mask_nii_path); external_mask = external_mask_nii.get_fdata()
         brain_mask_nii = nib.load(brain_mask_nii_path); brain_mask = brain_mask_nii.get_fdata()
+        white_matter_mask_nii = nib.load(white_matter_mask_nii_path); white_matter_mask = white_matter_mask_nii.get_fdata()
 
         # streamlines_actor_wm = actor.line(
         #     streamlines_wm, colors=colormap.line_colors(streamlines_wm, cmap = "rgb_standard"), opacity=0.25
@@ -57,9 +59,9 @@ def show_tracts(base_dir):
             gtv_mask, affine=affine, opacity=0.95, color = (1,0,0) # red
         )
 
-        # wm_actor = actor.contour_from_roi(
-        #     white_matter_mask, affine=affine, opacity=0.25, color=(1,1,1) # white
-        # )
+        wm_actor = actor.contour_from_roi(
+            white_matter_mask, affine=affine, opacity=0.25, color=(1,1,1) # white
+        )
 
         # gtv_wm_actor = actor.contour_from_roi(
         #     gtv_wm_mask, affine=affine, opacity=0.25, color=(0, 1, 0) # green
@@ -69,16 +71,16 @@ def show_tracts(base_dir):
             external_mask, affine=affine, opacity=0.5, color=(0.676, 0.844, 0.898) # light blue
         ) 
 
-        # brain_actor = actor.contour_from_roi(
-        #     brain_mask, affine=affine, opacity=0.5, color=(1, 0.753, 0.796) # pink
-        # ) 
+        brain_actor = actor.contour_from_roi(
+            brain_mask, affine=affine, opacity=0.5, color=(1, 0.753, 0.796) # pink
+        ) 
 
         # Create the 3D display.
         scene = window.Scene()
         # scene.add(streamlines_actor_wm)
         scene.add(streamlines_actor_gtv)
         scene.add(gtv_actor)
-        # scene.add(wm_actor)
+        scene.add(wm_actor)
         # scene.add(gtv_wm_actor)
         scene.add(external_actor)
         # scene.add(brain_actor)

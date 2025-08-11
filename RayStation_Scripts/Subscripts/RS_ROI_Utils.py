@@ -113,7 +113,7 @@ def load_rois(base_dir):
         rt_struct_path = file_paths["RS_File_Paths"][0] # Should only be one RT Struct file
 
         # Load RTStruct
-        rtstruct = RTStructBuilder.create_from(dicom_series_path=rs_ct_dcm_dir, rt_struct_path=rt_struct_path)
+        rtstruct = RTStructBuilder.create_from(dicom_series_path=rs_mr_dcm_dir, rt_struct_path=rt_struct_path) # use MR DICOM series
 
         # List available ROI names
         print(f"ROI Names: {rtstruct.get_roi_names()}")
@@ -123,15 +123,15 @@ def load_rois(base_dir):
         gtv_name = gtv_name[0] # Take first name from list of GTV names 
         gtv_mask = rtstruct.get_roi_mask_by_name(gtv_name)  # 3D binary numpy array
         gtv_mask = np.transpose(gtv_mask, (1, 0, 2)) # change to [x y z]
-        gtv_mask = gtv_mask[:, ::-1, :] # flip y-axis to work properly for ANTs
+        gtv_mask = gtv_mask[::-1, :, :] # flip x-axis to be proper for NIfTI
 
         external_mask = rtstruct.get_roi_mask_by_name("External") # Get External
         external_mask = np.transpose(external_mask, (1, 0, 2)) # change to [x y z]
-        external_mask = external_mask[:, ::-1, :] # flip y-axis to work properly for ANTs
+        external_mask = external_mask[::-1, :, :] # flip x-axis to be proper for NIfTI
 
         brain_mask = rtstruct.get_roi_mask_by_name("Brain") # Get Brain
         brain_mask = np.transpose(brain_mask, (1, 0, 2)) # change to [x y z]
-        brain_mask = brain_mask[:, ::-1, :] # flip y-axis to work properly for ANTs
+        brain_mask = brain_mask[::-1, :, :] # flip x-axis to be proper for NIfTI
 
     return gtv_mask, external_mask, brain_mask
     
@@ -148,6 +148,7 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
     gtv_mask_nii_path = rs_rois_nii_dir / "gtv_mask.nii.gz" # define file path
     external_mask_nii_path = rs_rois_nii_dir / "external_mask.nii.gz" # define file path
     brain_mask_nii_path = rs_rois_nii_dir / "brain_mask.nii.gz" # define file path
+    white_matter_mask_nii_path = rs_rois_nii_dir / "white_matter_mask.nii.gz" # define file path
 
     # First check if interpolation is needed. Flag is true when interpolation is needed
     interp_flag = True if gtv_mask.shape != white_matter_mask.shape else False
@@ -158,6 +159,11 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
         # Must be converted from DICOM to NIfTI so that ANTs can read the files.
         # ANTs can only read NIfTI
         print("Transformation of ROIs from CT to MR coordinates required.")
+
+        # Flip y-axis (necessary with ANTs' coordinates)
+        gtv_mask = gtv_mask[:, ::-1, :] # flip y-axis to work properly for ANTs
+        external_mask = external_mask[:, ::-1, :] # flip y-axis to work properly for ANTs
+        brain_mask = brain_mask[:, ::-1, :] # flip y-axis to work properly for ANTs
 
         rs_ct_nii_dir = rs_dir / "CT_NIfTI" # define folder path
 
@@ -234,9 +240,13 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
                                                 transformlist=reg['fwdtransforms'], interpolator='nearestNeighbor')
         
         # Get masks from ants variables
-        gtv_mask = gtv_mask_ants_mr.numpy()[::-1,::-1,:] # reverse x and y axes to be aligned with white matter
-        external_mask = external_mask_ants_mr.numpy()[::-1,::-1,:] # reverse x and y axes to be aligned with white matter
-        brain_mask = brain_mask_ants_mr.numpy()[::-1,::-1,:] # reverse x and y axes to be aligned with white matter
+        gtv_mask = gtv_mask_ants_mr.numpy()[:,::-1,:] # reverse y axis to be aligned with white matter
+        external_mask = external_mask_ants_mr.numpy()[:,::-1,:] # reverse y axis to be aligned with white matter
+        brain_mask = brain_mask_ants_mr.numpy()[:,::-1,:] # reverse y axis to be aligned with white matter
+
+        # Interpolation no longer needed
+        interp_flag = False
+        print("Transformation successfully completed.")
 
     # Overlap white matter mask with brain mask to make sure all white matter is within the brain
     white_matter_mask = white_matter_mask.astype(bool) & brain_mask.astype(bool)
@@ -245,15 +255,11 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
     gtv_wm_mask = gtv_mask.astype(bool) & white_matter_mask.astype(bool)
 
     # Save ROIs as NIfTI files (for good now)
-    if interp_flag:
-        # Save masks to NIfTI files
-        nib.save(nib.Nifti1Image(gtv_mask.astype('uint8'), affine=affine_mr), gtv_mask_nii_path) # use same affine as from MR
-        nib.save(nib.Nifti1Image(external_mask.astype('uint8'), affine=affine_mr), external_mask_nii_path) # use same affine as from MR
-        nib.save(nib.Nifti1Image(brain_mask.astype('uint8'), affine=affine_mr), brain_mask_nii_path) # use same affine as from MR
-
-        # Interpolation no longer needed
-        interp_flag = False
-        print("Transformation successfully completed.")
+    # Save masks to NIfTI files
+    nib.save(nib.Nifti1Image(gtv_mask.astype('uint8'), affine=affine_mr), gtv_mask_nii_path) # use same affine as from MR
+    nib.save(nib.Nifti1Image(external_mask.astype('uint8'), affine=affine_mr), external_mask_nii_path) # use same affine as from MR
+    nib.save(nib.Nifti1Image(brain_mask.astype('uint8'), affine=affine_mr), brain_mask_nii_path) # use same affine as from MR
+    nib.save(nib.Nifti1Image(white_matter_mask.astype('uint8'), affine=affine_mr), white_matter_mask_nii_path) # use same affine as from MR
 
     return gtv_mask, external_mask, brain_mask, white_matter_mask, gtv_wm_mask 
 

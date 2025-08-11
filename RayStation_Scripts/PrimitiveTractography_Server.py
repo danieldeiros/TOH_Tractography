@@ -135,19 +135,6 @@ def data_relay():
             # Send base directory to server
             local_data_socket.send_multipart([ds_identity, b'', base_dir])
             break # continue to poll for Fury data now
-            # ds_msg = ds_msg.decode()
-            # print(f'{ds_msg}')
-            # if ds_msg == "RS data available":
-            #     local_data_socket.send_multipart([ds_identity, b'', ds_msg.encode('utf-8')]) # Tell PrimitiveTractography we have RS data available
-            #     while data_polling:
-            #         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-            #             ds_identity, _, trans_matrix = data_socket.recv_multipart() # receive trans matrix from Raystation
-            #             local_data_socket.send_multipart([ds_identity, b'', trans_matrix]) # send trans matrix to PrimitiveTractography
-            #             break # exit while loop
-            #     break # exit while loop
-            # elif ds_msg == "RS data not available":
-            #     local_data_socket.send_multipart([ds_identity, b'', ds_msg.encode('utf-8')]) # Tell PrimitiveTractography we do not have RS data available
-            #     break # continue to poll for Fury data now
         time.sleep(0.1) # wait a bit... removes weird error messages
 
     cnt = 0 # Set counter to exit after 2

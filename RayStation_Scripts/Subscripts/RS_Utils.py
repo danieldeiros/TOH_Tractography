@@ -9,34 +9,14 @@ from pathlib import Path
 from Subscripts.Preliminaries import rs_get_paths, dicom_to_nifti, check_nifti_folder, get_fname
 
 # Obtain image registration from CT to MR
-def get_img_registration(case):
+def get_img_registration(case, mr_exam_name):
 
-    # Check if we have a PL map and CT planning
+    # Check if we have a PL map
     pl_map = False # set flag to false first
-    ct_planning = False # set flag to false first
-    mr_exam_names = [] # set list empty for now
     for exam in case.Examinations:
         if exam.Name == "PL map":
             print("PL map already created.")
             pl_map = True # set flag to true
-        elif "MR" in exam.Name:
-            mr_exam_names.append(exam.Name) # add mr name to list
-        elif "CT" in exam.Name:
-            if exam.Name == "CT Planning":
-                ct_planning = True # set flag to true
-
-    # Rename first CT scan to CT Planning
-    while not ct_planning:
-        for exam in case.Examinations:
-            if "CT" in exam.Name:
-                print(f"Renamed '{exam.Name} to 'CT Planning'")
-                exam.Name = "CT Planning"
-                ct_planning = True
-                break
-        
-        if not ct_planning:
-            # Raise error if no CT scan found
-            raise ValueError("No CT scan found.")
 
     # Get registration
     source_reg = [] # set to empty first
@@ -48,15 +28,15 @@ def get_img_registration(case):
             # Take first registration in list
             source_reg = source_reg[0]
             trans_matrix = source_reg.RigidTransformationMatrix # assign transformation matrix
-            if source_reg.Name != "CT Planning - PL map": # Make sure registration has expected name
+            if source_reg.Name != "Image registration CT Planning - PL map": # Make sure registration has expected name
                 source_reg = [] # Set to empty if not the expected name
 
     if not source_reg:
         # Try to get proper registration from CT to MR
         source_reg = [reg for reg in case.RigidRegistrations if reg.FromExamination.Name == "CT Planning"
-                    and reg.ToExamination.Name in mr_exam_names] # loop through registrations from different MRs
+                    and reg.ToExamination.Name == mr_exam_name] # Get registration from MR exam name
         if source_reg:
-            # Take first registration if found registration from CT to MR
+            # Take first registration (should only be one) if found registration from CT to MR
             # We assume all MRs have the same affine
             source_reg = source_reg[0]
             # Get transformation matrix
@@ -64,7 +44,7 @@ def get_img_registration(case):
         else:
             # Try to find registration from MR to CT now
             source_reg = [reg for reg in case.RigidRegistrations 
-                        if reg.FromExamination.Name in mr_exam_names # loop through registrations from different MRs
+                        if reg.FromExamination.Name == mr_exam_name # Get registration from MR exam name
                         and reg.ToExamination.Name == "CT Planning"]
             if source_reg:
                 # Take first registration if found registration from MR to CT
@@ -82,7 +62,7 @@ def get_img_registration(case):
                 case.CreateNamedIdentityImageRegistration(
                 FromExaminationName = source_reg.ToExamination.Name, # Should be CT Planning
                 ToExaminationName = source_reg.FromExamination.Name,
-                RegistrationName = f"{source_reg.ToExamination.Name} - {source_reg.FromExamination.Name}",
+                RegistrationName = f"Image registration {source_reg.ToExamination.Name} - {source_reg.FromExamination.Name}",
                 Description = ""
                 )
 
@@ -97,7 +77,7 @@ def get_img_registration(case):
             case.CreateNamedIdentityImageRegistration(
                 FromExaminationName = "CT Planning",
                 ToExaminationName = "PL map",
-                RegistrationName = "CT Planning - PL map",
+                RegistrationName = "Image registration CT Planning - PL map",
                 Description = ""
             )
             
@@ -114,34 +94,30 @@ def get_img_registration(case):
     return case
 
 # Copy ROIs from CT to MR
-def copy_roi_geometries(case):
+def copy_roi_geometries(case, mr_exam_name):
 
     # Get name of GTV ROI
     roi_names = case.PatientModel.RegionsOfInterest.keys()
     gtv_rois = [name for name in roi_names if "GTV" in name]
     gtv_roi_name = gtv_rois[0] # Assume length one for gtv rois. i.e. assuming only one GTV ROI
 
-    # Check for MRIs
-    mr_exam_names = [] # set list empty for now
-    for exam in case.Examinations:
-        if "MR" in exam.Name:
-            mr_exam_names.append(exam.Name) # add mr name to list
-
     source_reg = [] # set to empty first
     # Check if registration from CT Planning to some MRI has already been made
     while not source_reg:
         source_reg = [reg for reg in case.RigidRegistrations if reg.FromExamination.Name == "CT Planning"
-                        and reg.ToExamination.Name in mr_exam_names]
+                        and reg.ToExamination.Name == mr_exam_name]
         if not source_reg:
-            case = get_img_registration(case) # call function if no image registration found
+            case = get_img_registration(case, mr_exam_name) # call function if no image registration found
 
     source_reg = source_reg[0] # Take first element (should have length 1)
 
     # Copy ROI geometries to MR scan
     case.PatientModel.CopyRoiGeometries(SourceExamination=case.Examinations['CT Planning'],
-                                    TargetExaminationNames=[f"{source_reg.ToExamination.Name}"], RoiNames=[gtv_roi_name, "Brain"],
-                                    ImageRegistrationNames=[f"CT Planning - {source_reg.ToExamination.Name}"],
+                                    TargetExaminationNames=[f"{source_reg.ToExamination.Name}"], RoiNames=[gtv_roi_name, "Brain", "External"],
+                                    ImageRegistrationNames=[f"Image registration CT Planning - {source_reg.ToExamination.Name}"],
                                     TargetExaminationNamesToSkipAddedReg=[])
+    
+    return case
     
 # Export CT, MR, and RT Struct from MR
 def export_rs_stuff(patient, case, base_dir):
@@ -168,9 +144,12 @@ def export_rs_stuff(patient, case, base_dir):
         if not ct_planning:
             # Raise error if no CT scan found
             raise ValueError("No CT scan found.")
-        
-    # Take first MR exam name
-    mr_exam_name = mr_exam_names[0]
+
+    # Get MR exam name with FA in the description
+    mr_exam_name = check_description(case, mr_exam_names)
+
+    # Copy ROIs from CT Planning to MR exam if necessary
+    case = copy_roi_geometries(case, mr_exam_name)
 
     # Define folders/paths
     rs_dir = base_dir / "RayStation" # Folder containing RayStation (RS) exports
@@ -191,6 +170,20 @@ def export_rs_stuff(patient, case, base_dir):
         import traceback
         print("Export failed:")
         traceback.print_exc()
+
+# Check if FA exists in MR exam name
+def check_description(case, mr_exam_names):
+    # Loop through all mr exam names
+    for i in range(0,len(mr_exam_names)):
+        # Take MR exam name
+        mr_exam_name = mr_exam_names[i]
+        for exam in case.Examinations:
+            if exam.Name == mr_exam_name:
+                # Check if description of examination has FA
+                data = exam.GetAcquisitionDataFromDicom()
+                if 'FA' in data['SeriesModule']['SeriesDescription']:
+                    # Return once we find MR exam with FA in description
+                    return mr_exam_name
 
 # Check if base director already has necessary files
 def check_rois(base_dir):

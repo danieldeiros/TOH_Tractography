@@ -12,6 +12,7 @@ from Subscripts.Visualization_Utils import show_tracts, show_wmpl
 import zmq
 import json
 import pickle
+from pathlib import Path
 
 # Preliminaries
 
@@ -54,7 +55,7 @@ poller.register(data_socket, zmq.POLLIN)
 while True:
     if dict(poller.poll(timeout=3000)): # check for message for 3 seconds
         ds_identity, _, base_dir = data_socket.recv_multipart() # receive data
-        base_dir = json.loads(base_dir.decode('utf-8')) # decode data
+        base_dir = Path(json.loads(base_dir.decode('utf-8'))) # decode data
         break # exit while loop
 
 ## Set interactivity to True or False
