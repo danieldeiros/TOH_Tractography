@@ -9,27 +9,27 @@ from pathlib import Path
 from Subscripts.Preliminaries import rs_get_paths, dicom_to_nifti, check_nifti_folder, get_fname
 
 # Obtain image registration from CT to MR
-def get_img_registration(case, mr_exam_name):
+def get_img_registration(case, mr_exam_name, pl_map=False):
 
-    # Check if we have a PL map
-    pl_map = False # set flag to false first
-    for exam in case.Examinations:
-        if exam.Name == "PL map":
-            print("PL map already created.")
-            pl_map = True # set flag to true
+    # Skip if we already know we have a PL Map
+    if not pl_map:
+        # Check if we have a PL Map
+        pl_map = check_pl_map(case)
 
     # Get registration
     source_reg = [] # set to empty first
     if pl_map:
-        # Check if registration from CT Planning to PL map already made
+        # Check if registration from CT Planning to PL Map already made
         source_reg = [reg for reg in case.RigidRegistrations if reg.FromExamination.Name == "CT Planning"
-                        and reg.ToExamination.Name == "PL map"]
+                        and reg.ToExamination.Name == "PL Map"]
         if source_reg:
             # Take first registration in list
             source_reg = source_reg[0]
             trans_matrix = source_reg.RigidTransformationMatrix # assign transformation matrix
-            if source_reg.Name != "Image registration CT Planning - PL map": # Make sure registration has expected name
+            if source_reg.Name != "Image registration CT Planning - PL Map": # Make sure registration has expected name
                 source_reg = [] # Set to empty if not the expected name
+            else:
+                print("Image registration CT Planning - PL Map succesfully acquired.")
 
     if not source_reg:
         # Try to get proper registration from CT to MR
@@ -76,8 +76,8 @@ def get_img_registration(case, mr_exam_name):
             # Create new image registration
             case.CreateNamedIdentityImageRegistration(
                 FromExaminationName = "CT Planning",
-                ToExaminationName = "PL map",
-                RegistrationName = "Image registration CT Planning - PL map",
+                ToExaminationName = "PL Map",
+                RegistrationName = "Image registration CT Planning - PL Map",
                 Description = ""
             )
             
@@ -90,6 +90,8 @@ def get_img_registration(case, mr_exam_name):
                 
             # Assign transformation matrix to new image registration
             case.RigidRegistrations[len(case.RigidRegistrations)-1].SetImageRegistrationMatrix(TransformationMatrix = trans_matrix)
+
+            print("Image registration CT Planning - PL Map succesfully created.")
         
     return case
 
@@ -123,27 +125,13 @@ def copy_roi_geometries(case, mr_exam_name):
 def export_rs_stuff(patient, case, base_dir):
 
     # Check for MRIs
-    ct_planning = False # set flag to false first
     mr_exam_names = [] # set list empty for now
     for exam in case.Examinations:
         if "MR" in exam.Name:
             mr_exam_names.append(exam.Name) # add mr name to list
-        elif "CT" in exam.Name:
-            if exam.Name == "CT Planning":
-                ct_planning = True # set flag to true
 
-    # Rename first CT scan to CT Planning
-    while not ct_planning:
-        for exam in case.Examinations:
-            if "CT" in exam.Name:
-                print(f"Renamed '{exam.Name} to 'CT Planning'")
-                exam.Name = "CT Planning"
-                ct_planning = True
-                break
-        
-        if not ct_planning:
-            # Raise error if no CT scan found
-            raise ValueError("No CT scan found.")
+    # Check if we already have a CT Planning examination and rename CT scan to CT Planning if not
+    case = check_ct_planning(case)
 
     # Get MR exam name with FA in the description
     mr_exam_name = check_description(case, mr_exam_names)
@@ -262,5 +250,39 @@ def check_rois(base_dir):
             rois_flag = True
             return rois_flag
 
+# Check if we have a PL Map
+def check_pl_map(case):
 
+    # Check if we have a PL Map
+    pl_map = False # set flag to false first
+    for exam in case.Examinations:
+        if exam.Name == "PL Map":
+            print("PL Map already created.")
+            pl_map = True # set flag to true
+
+    return pl_map
+
+# Check if we have CT Planning
+def check_ct_planning(case):
+    # Check if we already have a CT Planning exam
+    ct_planning = False # set flag to false first
+    for exam in case.Examinations:
+        if "CT" in exam.Name:
+            if exam.Name == "CT Planning":
+                ct_planning = True # set flag to true
+
+    # Rename first CT scan to CT Planning
+    while not ct_planning:
+        for exam in case.Examinations:
+            if "CT" in exam.Name:
+                print(f"Renamed '{exam.Name} to 'CT Planning'")
+                exam.Name = "CT Planning"
+                ct_planning = True
+                break
+        
+        if not ct_planning:
+            # Raise error if no CT scan found
+            raise ValueError("No CT scan found.")
+        
+    return case
     

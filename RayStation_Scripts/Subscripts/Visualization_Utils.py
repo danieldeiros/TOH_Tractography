@@ -80,15 +80,15 @@ def show_tracts(base_dir):
         # scene.add(streamlines_actor_wm)
         scene.add(streamlines_actor_gtv)
         scene.add(gtv_actor)
-        scene.add(wm_actor)
+        # scene.add(wm_actor)
         # scene.add(gtv_wm_actor)
         scene.add(external_actor)
         # scene.add(brain_actor)
 
         # Define colours to show
         colours = {
-            'GTV' : (1,0.1,0.1), # red
-            'External' : (0.676, 0.844, 0.898) # light blue
+            'GTV' : (1,0,0), # red 
+            'External' : (0.676, 0.844, 0.898) # light blue 
         }
 
         # Add custom legend (text + coloured squares)
@@ -104,7 +104,7 @@ def show_tracts(base_dir):
             
             # Add the label as text next to it
             # direction=None makes label follow camera
-            text_actor = actor.vector_text(text=label, pos=legend_pos + [100, -i*spacing, -i*spacing], scale=(20,20,20), direction=None, align_center=False, extrusion=10)
+            text_actor = actor.vector_text(text=label, pos=legend_pos + [100, -i*spacing, -i*spacing], scale=(20,20,20), direction=None, align_center=False, extrusion=3)
             scene.add(text_actor)
 
         # Add informational text
@@ -112,8 +112,13 @@ def show_tracts(base_dir):
                     "\nRed indicates directions in the X axis: right to left or left to right." \
                     "\nGreen indicates directions in the Y axis: posterior to anterior or from anterior to posterior." \
                     "\nBlue indicates directions in the Z axis: inferior to superior or vice versa."
-        info_actor = actor.vector_text(text=info_text, pos=legend_pos + [100,-100,-100], scale=(5,5,5), direction=None, align_center=False, extrusion=10)
+        info_actor = actor.vector_text(text=info_text, pos=legend_pos + [100,-100,-100], scale=(5,5,5), direction=None, align_center=False, extrusion=1)
         scene.add(info_actor)
+
+        # Add title
+        title_text = "Tractography Streamlines"
+        title_actor = actor.vector_text(text=title_text, pos= [0,125,125], scale = (25,25,25), direction=None, align_center=True, extrusion=5)
+        scene.add(title_actor)
 
         # Save still images for this static example. Or for interactivity use
         # window.record(scene=scene, out_path="tractogram_EuDX.png", size=(800, 800))
@@ -163,7 +168,7 @@ def show_wmpl(base_dir):
         ras_coords = nib.affines.apply_affine(wmpl_img.affine, voxel_coords) # affine from wmpl should be same as affines from before
 
         # Create a colormap for WMPL values
-        cmap = colormap.create_colormap(values, name='hot')
+        cmap = colormap.create_colormap(values, name='jet')
 
         # Create a point cloud actor with colors
         points_actor = actor.point(
@@ -172,12 +177,12 @@ def show_wmpl(base_dir):
 
         # Create actor for external
         external_actor = actor.contour_from_roi(
-            external_mask, affine=affine, opacity=0.5, color=(0, 0, 1) # blue
+            external_mask, affine=affine, opacity=0.5, color=(0.676, 0.844, 0.898) # light blue
         ) 
 
         # Create actor for GTV
         gtv_actor = actor.contour_from_roi(
-            gtv_mask, affine=affine, opacity=0.95, color = (0,0,0) # black
+            gtv_mask, affine=affine, opacity=0.95, color = (1,0,0), # red 
         )
 
         # Create the 3D display.
@@ -185,6 +190,42 @@ def show_wmpl(base_dir):
         scene.add(points_actor)
         scene.add(external_actor)
         scene.add(gtv_actor)
+
+        # Define colours to show
+        colours = {
+            'GTV' : (1,0,0), # red 
+            'External' : (0.676, 0.844, 0.898) # light blue 
+        }
+
+        # Add custom legend (text + coloured squares)
+        legend_pos = np.array([150, 30, 0])
+        spacing = 20
+
+        for i, (label, colour) in enumerate(colours.items()):
+            # Add a small square actor as color indicator
+            square_actor = actor.sphere(centers=np.array([legend_pos + [0, -i*spacing, -i*spacing]]),
+                                        colors=np.array([colour]),
+                                        radii=10)
+            scene.add(square_actor)
+            
+            # Add the label as text next to it
+            # direction=None makes label follow camera
+            text_actor = actor.vector_text(text=label, pos=legend_pos + [100, -i*spacing, -i*spacing], scale=(20,20,20), direction=None, align_center=False, extrusion=3)
+            scene.add(text_actor)
+
+        # Add informational text
+        info_text = "This WMPL (white matter path length) map demonstrates the minimum path length" \
+                    "\nfrom different parts of the brain to the GTV via tracts." \
+                    "\nThe colourmap goes from blue to red where blue indicates a short path length" \
+                    "\nand red indicates a long path length. Feel free to search up 'jet colourmap'" \
+                    "\nfor a detailed view."
+        info_actor = actor.vector_text(text=info_text, pos=legend_pos + [100,-100,-100], scale=(5,5,5), direction=None, align_center=False, extrusion=1)
+        scene.add(info_actor)
+
+        # Add title
+        title_text = "WMPL Map"
+        title_actor = actor.vector_text(text=title_text, pos= [0,125,125], scale = (25,25,25), direction=None, align_center=True, extrusion=5)
+        scene.add(title_actor)
 
         # Show plot
         # if interactive:

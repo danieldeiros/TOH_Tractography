@@ -139,19 +139,19 @@ def rs_get_info(path, prints=True):
         if file.is_file():
             # print(f"Found file: {file.name}")
             try:
-                if "CT" in file.name.upper() and pydicom.dcmread(file, stop_before_pixels=True).Modality == 'CT':
+                if "CT" in file.name.upper() or pydicom.dcmread(file, stop_before_pixels=True).Modality == 'CT':
                     CT_Files.append(pydicom.dcmread(file)) 
                     CT_File_Paths.append(file)
-                elif "RD" in file.name.upper() and pydicom.dcmread(file, stop_before_pixels=True).Modality == 'RTDOSE':
+                elif "RD" in file.name.upper() or pydicom.dcmread(file, stop_before_pixels=True).Modality == 'RTDOSE':
                     RD_Files.append(pydicom.dcmread(file))
                     RD_File_Paths.append(file)
-                elif "RP" in file.name.upper() and pydicom.dcmread(file, stop_before_pixels=True).Modality == 'RTPLAN':
+                elif "RP" in file.name.upper() or pydicom.dcmread(file, stop_before_pixels=True).Modality == 'RTPLAN':
                     RP_Files.append(pydicom.dcmread(file))
                     RP_File_Paths.append(file)
-                elif "RS" in file.name.upper() and pydicom.dcmread(file, stop_before_pixels=True).Modality == 'RTSTRUCT':
+                elif "RS" in file.name.upper() or pydicom.dcmread(file, stop_before_pixels=True).Modality == 'RTSTRUCT':
                     RS_Files.append(pydicom.dcmread(file))
                     RS_File_Paths.append(file)
-                elif "MR" in file.name.upper() and pydicom.dcmread(file, stop_before_pixels=True).Modality == 'MR':
+                elif "MR" in file.name.upper() or pydicom.dcmread(file, stop_before_pixels=True).Modality == 'MR':
                     MR_Files.append(pydicom.dcmread(file))
                     MR_File_Paths.append(file)
                 else:

@@ -77,8 +77,9 @@ def save_wmpl_dicom(base_dir, wmpl):
     wmpl_dir_dcm = base_dir / "WMPL/DICOM"
     wmpl_dir_dcm.mkdir(parents=True, exist_ok=True) # make folder if it doesnt exist yet
 
-    # create new series UID
+    # create new series UID and new study UID
     new_series_uid = pydicom.uid.generate_uid()
+    new_study_uid = pydicom.uid.generate_uid()
 
     for i in range(wmpl.shape[2]):  # For each slice
         # ensure overlays properly with RayStation. Basically undoing what I did with ROIs.
@@ -91,8 +92,12 @@ def save_wmpl_dicom(base_dir, wmpl):
         # Modify instance-specific metadata
         dcm.InstanceNumber = i + 1
         dcm.SeriesInstanceUID = new_series_uid
+        dcm.StudyInstanceUID = new_study_uid
         dcm.SOPInstanceUID = pydicom.uid.generate_uid()
         dcm.PixelData = slice_data.tobytes()
         dcm.Rows, dcm.Columns = slice_data.shape
+        dcm.SeriesDescription = "White matter path length map"
+        dcm.ProtocolName = "N/A"
+        dcm.Modality = "MR"
 
         dcm.save_as(wmpl_dir_dcm / f"WMPL_slice_{i+1:03d}.dcm")

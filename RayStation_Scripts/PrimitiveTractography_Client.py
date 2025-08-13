@@ -10,6 +10,7 @@ import sys
 import pickle
 from pathlib import Path
 import json
+import subprocess
 
 # Add RayStation scripts folder to path
 rs_scripts_path = r"V:\Common\Staff Personal Folders\DanielH\RayStation_Scripts\Tractography".replace("\\","/")
@@ -17,8 +18,9 @@ sys.path.append(rs_scripts_path)
 
 # Import necessary functions
 from Subscripts.Visualization_Utils import show_tracts, show_wmpl 
-from Subscripts.Preliminaries import get_base_dir
-from Subscripts.RS_Utils import get_img_registration, copy_roi_geometries, export_rs_stuff, check_rois
+from Subscripts.Preliminaries import get_base_dir, rs_get_info
+from Subscripts.RS_Utils import export_rs_stuff, check_rois, check_pl_map, check_ct_planning
+from DTI_CTV_Maker import dti_ctv_maker
 
 ## Define patient folder path
 print("Defining base folder...")
@@ -66,7 +68,7 @@ stream_port = "5562"
 data_port = "5563"
 
 #  Socket for work
-print("\nConnecting to PrimitiveTractography server...")
+print(f"\n[{datetime.datetime.now()}] Connecting to PrimitiveTractography server...")
 main_socket = context.socket(zmq.DEALER)
 main_socket.linger = 0 # doesn't wait for anything when closing
 main_socket.connect(f"tcp://{server_ip}:{main_port}")
@@ -139,7 +141,7 @@ class HeartbeatManager:
                     self.connection_disconnects += 1 # add 1 to consecutive missed heartbeats
                     if self.connection_disconnects >= 3:
                         # Stop program if 3 missed heartbeats in a row
-                        print("\nConnection with server unavailable. Stopping the program.")
+                        print(f"\n[{datetime.datetime.now()}] Connection with server unavailable. Stopping the program.")
                         # Close sockets and terminate context
                         global main_socket_active 
                         global stream_socket_active
@@ -172,6 +174,7 @@ heartbeat.start()
 # Define function to receive stream socket outputs
 def receive_stream():
     global stream_socket_active # access stream_socket_active flag
+    global rs_flag
     while stream_socket_active:
         if dict(stream_poller.poll(timeout=3000)): # check for 3 seconds
             # Receive terminal outputs until script is done
@@ -181,7 +184,8 @@ def receive_stream():
             elif msg["type"] == "done":
                 print(f"[{datetime.datetime.now()}] Script finished with code {msg['returncode']}")
                 time.sleep(0.1) # Wait for main thread to say completed succesfully or with error
-                print(f"\n[{datetime.datetime.now()}] Stopping the program.")
+                if not rs_flag:
+                    print(f"\n[{datetime.datetime.now()}] Stopping the program.")
                 # Close sockets and terminate context
                 global main_socket_active 
                 global data_socket_active
@@ -224,17 +228,12 @@ def data_dealer():
     
     while data_socket_active:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-            # print("Unpickling stuff!")
-            # data = pickle.loads(data_socket.recv()) # receive data and unpickle
-            # print("Received data on client!")
-            _, data = data_socket.recv_multipart()  # receive data
-            data = json.loads(data.decode('utf-8')) # decode data
+            _, ds_msg = data_socket.recv_multipart()  # receive message
+            ds_msg = ds_msg.decode('utf-8') # decode message
 
-            # Assign variables from data dictionary
-            base_dir = Path(data["base_dir"])
-
-            # Show tracts
-            show_tracts(base_dir)
+            if ds_msg == "Show Fury":
+                # Show tracts
+                show_tracts(base_dir)
             
             # Tell server Fury window closed
             data_socket.send_multipart([b'', b"Data received. Fury window closed"])
@@ -242,24 +241,16 @@ def data_dealer():
             # Wait for data from server to show WMPL map
             while data_socket_active:
                 if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-                    # data = data_socket.recv() # receive data and unpickle
-                    # data = pickle.loads(data)
-                    _, data = data_socket.recv_multipart()  # receive data
-                    data = json.loads(data.decode('utf-8')) # decode data
-                    
-                    # Assign variables from data dictionary
-                    base_dir = Path(data["base_dir"])
-                    # slice_thickness = data["slice_thickness"]
-                    
-                    # Show WMPL map
-                    show_wmpl(base_dir)
+                    _, ds_msg = data_socket.recv_multipart()  # receive message
+                    ds_msg = ds_msg.decode('utf-8') # decode message
+
+                    if ds_msg == "Show Fury":
+                        # Show WMPL map
+                        show_wmpl(base_dir)
 
                     # Tell server Fury window closed
                     data_socket.send_multipart([b'', b"Data received. Fury window closed"])
-
-                    # if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-                    #     if data_socket.recv_string() == "Void":
-                            # return # Function is finished
+                    
                     return # Function is finished
                 
         time.sleep(1) # Wait 1 second to avoid error messages when exiting program
@@ -284,6 +275,7 @@ try:
                         _, message = main_socket.recv_multipart()
                         message = message.decode()
                         if message == "FINISHED":
+                            time.sleep(0.1) # Wait for "script ended with code 0"
                             print(f"[{datetime.datetime.now()}] Tractography and white matter path length map succesfully completed!")
                             break
                         elif message == "ERROR":
@@ -293,10 +285,10 @@ try:
                             print(f"[{datetime.datetime.now()}] Unexpected returned message while performing tractography: {message}.")
                             break
             else:
-                print(f"Unexpected returned message prior to commencing tractography: {message}")
+                print(f"[{datetime.datetime.now()}] Unexpected returned message prior to commencing tractography: {message}")
                 break
 except Exception as e:
-        print(f"Error: {e}")
+        print(f"[{datetime.datetime.now()}] Error: {e}")
 finally:
     # Close sockets and terminate context
     time.sleep(3) # Wait a bit for threads to stop polling
@@ -306,3 +298,86 @@ finally:
     data_socket.close()
     heartbeat.stop() # Calls stop method in HeartbeatManager class
     context.term()
+
+if rs_flag:
+
+    # Check if we already have a CT Planning examination and rename CT scan to CT Planning if not
+    case = check_ct_planning(case)
+
+    # Check if we have a PL map
+    pl_map = check_pl_map(case)
+
+    if not pl_map:
+
+        print(f"[{datetime.datetime.now()}] Importing WMPL as examination...")
+
+        # If running from RayStation, import WMPL
+        wmpl_dir_dcm = base_dir / "WMPL/DICOM" # Path to WMPL DICOM
+
+        # Extract info from files with pydicom
+        files, _ = rs_get_info(wmpl_dir_dcm)
+        # Load in MR data
+        Sorted_MR_Files = sorted(files["MR_Files"], key=lambda file: float(file.ImagePositionPatient[2])) # sort files by z-axis. increasing towards the head
+        # anatomical orientation type (0010,2210) absent so z-axis is increasing towards the head of the patient
+
+        patient_id = str(Sorted_MR_Files[0].PatientID)
+        study_instance_uid = str(Sorted_MR_Files[0].StudyInstanceUID)
+        series_instance_uid = str(Sorted_MR_Files[0].SeriesInstanceUID)
+
+        # Save before we import (required)
+        patient.Save()
+
+        # Import WMPL
+        warnings = patient.ImportDataFromPath(
+            Path = str(wmpl_dir_dcm),
+            CaseName = str(case.CaseName),
+            SeriesOrInstances = [{
+                "PatientID":patient_id, "StudyInstanceUID":study_instance_uid, "SeriesInstanceUID":series_instance_uid
+                }]
+        )
+
+        if warnings:
+            print(f"[{datetime.datetime.now()}] Import warnings: ", warnings)
+        else:
+            print(f"[{datetime.datetime.now()}] Import successful.")
+
+        # Rename new examination to PL Map
+        for exam in case.Examinations:
+            # Check if exam is same as the one we just made
+            data = exam.GetAcquisitionDataFromDicom()
+            if str(data['StudyModule']['StudyInstanceUID']) == study_instance_uid and str(data['SeriesModule']['SeriesInstanceUID']) == series_instance_uid:
+                # Rename exam name and exit for loop
+                print(f"Renamed '{exam.Name} to 'PL Map'")
+                exam.Name = "PL Map"
+                # Save change
+                patient.Save()
+                break
+    
+    # Set PL Map as the primary examination
+    examination = case.Examinations["PL Map"]
+    examination.SetPrimary()
+
+    # Set CT Planning as the secondary examination
+    examination = case.Examinations["CT Planning"]
+    examination.SetSecondary()
+
+    # Save patient
+    patient.Save()
+
+    # Prepare variables for DTI CTV Maker
+    # Environment setup parameters
+    db = get_current("PatientDB")
+    machine_db = get_current("MachineDB")
+    patient = get_current("Patient")
+    case = get_current("Case")
+    examination = get_current("Examination")
+    structure_set = case.PatientModel.StructureSets[examination.Name]
+    planning_examination = case.Examinations['CT Planning']
+    plmap_examination = case.Examinations['PL Map']
+
+    # Run DTI CTV Maker
+    print("Running DTI CTV maker...")
+    dti_ctv_maker(db, machine_db, patient, case, examination, structure_set, planning_examination, plmap_examination)
+    print("DTI CTV maker completed!")
+
+print(f"[{datetime.datetime.now()}] Stopping the program.")

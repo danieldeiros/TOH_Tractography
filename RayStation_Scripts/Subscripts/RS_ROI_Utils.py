@@ -84,7 +84,6 @@ def rs_folders(base_dir):
         if rs_ct_dcm_flag and rs_mr_dcm_flag and rs_rois_flag: # Continue if all folders valid
             print("Located files and created necessary folders successfully.")
 
-
 # Load necessary ROIs
 def load_rois(base_dir):
 

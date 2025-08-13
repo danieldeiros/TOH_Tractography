@@ -65,7 +65,6 @@ def get_wm_mask(data_masked, gtab):
 # Function using CSA ODF model and defining stopping criterion
 def csa_and_sc(gtab, data_masked, white_matter_mask, FA):
     # Using CSA (Constant Solid Angle) model then peaks_from_model
-    # csa_model = CsaOdfModel(gtab, sh_order_max=4)
     csa_model = CsaOdfModel(gtab, sh_order=4)
     csa_peaks = peaks_from_model(
         csa_model, data_masked, default_sphere, relative_peak_threshold=0.5, min_separation_angle=15, mask=white_matter_mask
@@ -122,9 +121,6 @@ def streamline_gen(seeds_wm, seeds_gtv, csa_peaks, stopping_criterion, affine):
     streamlines_gtv = Streamlines(streamlines_generator_gtv)
 
     # colors: red--> left to right, green--> front (anterior) to back (posterior), blue--> top to bottom
-    # # Streamlines with x and y flipped for colors
-    # streamlines_flipped = streamlines.copy()
-    # streamlines_flipped[:][:, 0:2] = streamlines_flipped[:][:, 1::-1]
 
     return streamlines_wm, streamlines_gtv
 
