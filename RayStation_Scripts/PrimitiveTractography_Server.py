@@ -141,13 +141,10 @@ def data_relay():
     while data_polling:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
             # print("Data found in poller!")
-            ds_identity, _, data = local_data_socket.recv_multipart() # receive data from PrimitiveTractography
-            # print("Data received from PrimitiveTractography")
-
-            # data = json.dumps(data).encode('utf-8') # encode data in bytes
+            ds_identity, _, ds_msg = local_data_socket.recv_multipart() # receive data from PrimitiveTractography
 
             # Send data to client
-            data_socket.send_multipart([ds_identity, b'', data])
+            data_socket.send_multipart([ds_identity, b'', ds_msg])
             # print("Data sent from server to client!")
 
             # Wait for client to receive
@@ -161,7 +158,6 @@ def data_relay():
                         if cnt<2:
                             break # return to first while loop
                         elif cnt >= 2:
-                            # data_socket.send_string("Void") # Send void so we can go back to receiving
                             return # exit function
                 time.sleep(0.1) # wait a bit... removes weird error messages
 
