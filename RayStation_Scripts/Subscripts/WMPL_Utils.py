@@ -1,9 +1,6 @@
 # WMPL functions
 
 ## Import necessary packages
-import os
-os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
 import pydicom
 import nibabel as nib
 from dipy.io.image import save_nifti
@@ -59,7 +56,7 @@ def get_wmpl(base_dir):
 # Function to save WMPL map as DICOM
 def save_wmpl_dicom(base_dir, wmpl):
     # Load in MR data used to make tracks
-    # This dats should be same size (as in (x,y,z)) as the white matter mask
+    # This data should be same size (as in (x,y,z)) as the white matter mask
     # For example, (256,256,70) for both
 
     # Define folders/paths

@@ -7,8 +7,6 @@ import zmq
 import threading
 import subprocess
 import sys
-import pickle
-import json
 
 # Define port numbers
 main_port = "5560"
@@ -70,7 +68,6 @@ def monitor_heartbeats():
                     if client_id not in last_heartbeat:
                         print(f"[{datetime.datetime.now()}] [Heartbeat] Established connection with {client_id}")
                     last_heartbeat[client_id] = time.time()
-                    # readable_time = datetime.datetime.fromtimestamp(last_heartbeat[client_id]).strftime("%d/%m/%Y %H:%M:%S.%f")
                     # print(f"[{datetime.datetime.now()}] [Heartbeat] Received from {client_id}.")
                     heartbeat_socket.send(b"PONG")
                 else:
@@ -79,8 +76,7 @@ def monitor_heartbeats():
             now = time.time()
             to_remove = []
             for client_id, timestamp in last_heartbeat.items():
-                if now - timestamp > heartbeat_timeout:
-                    # readable_time = datetime.datetime.fromtimestamp(now).strftime("%d/%m/%Y %H:%M:%S.%f")
+                if now - timestamp > heartbeat_timeout: # Check if time between now and last heartbeat exceeds timeout time
                     print(f"[{datetime.datetime.now()}] [Heartbeat] Client '{client_id}' missed heartbeat! Assuming disconnected.")
                     to_remove.append(client_id)
             for client_id in to_remove:
@@ -107,18 +103,15 @@ def stream(identity):
             if not stream_polling:
                 stream_socket.send_json({"type": "stdout", "data": "Connection lost!"}) # tell user connection lost
                 return # end daemon function
-            # time.sleep(0.1) # wait a bit
         stream_socket.send_json({"type": "done", "returncode": proc.wait()})
 
         if proc.wait() == 0:
             print("\nTractography completed succesfully.")
             main_socket.send_multipart([identity, b'', b"FINISHED"])
-            # stream_polling = False # break out of loop
             return # end of function
         else:
             print("\nError in tractography script.")
             main_socket.send_multipart([identity, b'', b"ERROR"])
-            # stream_polling = False # break out of loop
             return # end of function
         
     return # exit function if not stream polling
@@ -127,7 +120,6 @@ data_polling = True # Set flag to true first so that it's defined
 # Define function to relay data from PrimitiveTractography and relay back when the Fury window is closed
 def data_relay():
     global data_polling # Create flag to indicate when we are polling. Allows us to exit program safely with no errors
-    global trans_matrix # trans matrix for RayStation
     while data_polling:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
             # Receive base directory from client
@@ -140,37 +132,25 @@ def data_relay():
     cnt = 0 # Set counter to exit after 2
     while data_polling:
         if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-            # print("Data found in poller!")
             ds_identity, _, ds_msg = local_data_socket.recv_multipart() # receive data from PrimitiveTractography
 
             # Send data to client
             data_socket.send_multipart([ds_identity, b'', ds_msg])
-            # print("Data sent from server to client!")
 
-            # Wait for client to receive
-            while data_polling:
-                if dict(data_poller.poll(timeout=3000)): # check for 3 seconds
-                    ds_identity, _, ds_msg= data_socket.recv_multipart()
-                    ds_msg = ds_msg.decode()
-                    if ds_msg == "Data received. Fury window closed":
-                        local_data_socket.send_multipart([ds_identity, b'', ds_msg.encode('utf-8')]) # send message to PrimitiveTractography
-                        cnt += 1 # add to counter
-                        if cnt<2:
-                            break # return to first while loop
-                        elif cnt >= 2:
-                            return # exit function
-                time.sleep(0.1) # wait a bit... removes weird error messages
+            cnt += 1 # add to counter
+
+            if cnt >= 2:
+                return # exit function
 
         time.sleep(0.1) # wait a bit... removes weird error messages
     return # exit function if not data polling
 
 try:
     print("\nWaiting for client message...")
-    while True:
+    while True: #  Wait for next request from client
         socks = dict(main_poller.poll(timeout=3000)) # Check for 3 seconds
         if main_socket in socks:
-            #  Wait for next request from client
-            # message = main_socket.recv().decode()
+            # Receive message from client
             identity, _, message = main_socket.recv_multipart()
             message = message.decode()
             if message == "READY":

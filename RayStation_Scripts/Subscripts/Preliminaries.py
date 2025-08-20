@@ -1,9 +1,6 @@
 # Preliminaries
 
 ## Import necessary packages
-import os
-os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
 import pydicom
 import subprocess
 from pathlib import Path
@@ -79,7 +76,7 @@ def get_fname(path):
     return fname
 
 # Function to get exported RayStation file PATHS
-def rs_get_paths(path):
+def rs_get_paths(path, prints=True):
 
     # Define lists to add file paths to
     CT_File_Paths = []
@@ -106,7 +103,8 @@ def rs_get_paths(path):
             except:
                 print(f"Skipped invalid DICOM: {file.name}")
 
-    print(f"Found {len(CT_File_Paths)+len(RD_File_Paths)+len(RP_File_Paths)+len(RS_File_Paths)+len(MR_File_Paths)} valid DICOM files")
+    if prints:
+        print(f"Found {len(CT_File_Paths)+len(RD_File_Paths)+len(RP_File_Paths)+len(RS_File_Paths)+len(MR_File_Paths)} valid DICOM files")
 
     file_paths = {
         "CT_File_Paths" : CT_File_Paths,
@@ -186,6 +184,7 @@ def dicom_to_nifti(dicom_dir, nifti_dir):
     nifti_dir.mkdir(parents=True, exist_ok=True) # make folder for NIFTI if it doesnt exist yet
 
     # Create command for dcm2niix
+    # EXPLANATION OF LETTERS
     # -z y creates compressed (.gz) .nii files
     # -f %p_%s defines output file name as %p (protocol name(DICOM tag 0018, 1030)) with %s (series(DICOM tag 0020, 0011))
     # -o specifies the output directory of the NIfTI files
@@ -210,9 +209,9 @@ def dicom_to_nifti(dicom_dir, nifti_dir):
     print("[OK] DICOM files successfully converted to NIfTI")
 
 # Function to define base directory to be used
-def get_base_dir():
+def get_base_dir(case_name):
     ## Base directory to be used
-    base_dir = Path("V:/Common/Staff Personal Folders/DanielH/DICOM_Files/TractographyPatient/Case 1 RS/")
+    base_dir = Path(f"V:/Common/Staff Personal Folders/DanielH/DICOM_Files/TractographyPatient/{case_name} RS/")
     if base_dir.is_dir():
         print("Base folder: ", base_dir)
         return base_dir
@@ -222,7 +221,7 @@ def get_base_dir():
 # Function to get diffusion MRIs    
 def get_relevant_files(base_dir):
     # Define folder containing raw DICOM files
-    dicom_raw_dir = base_dir / "combined"
+    dicom_raw_dir = base_dir / "Combined"
 
     # Define dictionary to contain files with a given UID
     series_counts = defaultdict(list)

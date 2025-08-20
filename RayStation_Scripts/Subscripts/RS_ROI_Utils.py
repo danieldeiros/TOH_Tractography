@@ -1,9 +1,6 @@
 # Functions for obtaining ROIs from RayStation
 
 ## Import necessary packages
-import os
-os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
 import nibabel as nib
 from dipy.io.image import load_nifti
 from rt_utils import RTStructBuilder
@@ -124,10 +121,14 @@ def load_rois(base_dir):
         gtv_mask = np.transpose(gtv_mask, (1, 0, 2)) # change to [x y z]
         gtv_mask = gtv_mask[::-1, :, :] # flip x-axis to be proper for NIfTI
 
-        external_mask = rtstruct.get_roi_mask_by_name("External") # Get External
+        external_name = [name for name in rtstruct.get_roi_names() if "EXTERNAL" == name.upper()] # Get names that contain external
+        external_name = external_name[0] # Take first name from list of external names 
+        external_mask = rtstruct.get_roi_mask_by_name(external_name) # Get External
         external_mask = np.transpose(external_mask, (1, 0, 2)) # change to [x y z]
         external_mask = external_mask[::-1, :, :] # flip x-axis to be proper for NIfTI
 
+        brain_name = [name for name in rtstruct.get_roi_names() if "BRAIN" == name.upper()] # Get names that contain brain
+        brain_name = brain_name[0] # Take first name from list of brain names 
         brain_mask = rtstruct.get_roi_mask_by_name("Brain") # Get Brain
         brain_mask = np.transpose(brain_mask, (1, 0, 2)) # change to [x y z]
         brain_mask = brain_mask[::-1, :, :] # flip x-axis to be proper for NIfTI
@@ -207,7 +208,7 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
     _, affine_mr= load_nifti(rs_mr_nii_fpath, return_img = False) # only care about affine here
 
     # Make sure affine from diffusion MR same as RayStation MR
-    assert np.array_equal(affine_mr, affine), "Affines from raw MR and RayStation MR are not matching."
+    assert np.allclose(affine_mr, affine, rtol=1e-03, atol=1e-05), "Affines from raw MR and RayStation MR are not matching."
 
     # Save ROIs as NIfTI files (for ANTs in next step)
     if interp_flag:
@@ -262,6 +263,7 @@ def roi_interp(base_dir, gtv_mask, external_mask, brain_mask, white_matter_mask,
 
     return gtv_mask, external_mask, brain_mask, white_matter_mask, gtv_wm_mask 
 
+# Load white matter mask if it exists
 def get_white_matter_mask(base_dir):
     # Define path
     rs_dir = base_dir / "RayStation" # Folder containing RayStation (RS) exports

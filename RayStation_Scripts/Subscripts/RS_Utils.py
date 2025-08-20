@@ -3,10 +3,9 @@
 # Imports
 import numpy as np
 import shutil
-from pathlib import Path
 
 # Import necessary functions
-from Subscripts.Preliminaries import rs_get_paths, dicom_to_nifti, check_nifti_folder, get_fname
+from Subscripts.Preliminaries import rs_get_paths
 
 # Obtain image registration from CT to MR
 def get_img_registration(case, mr_exam_name, pl_map=False):
@@ -60,10 +59,10 @@ def get_img_registration(case, mr_exam_name, pl_map=False):
                 
                 # Create new image registration with this inversed transformation matrix
                 case.CreateNamedIdentityImageRegistration(
-                FromExaminationName = source_reg.ToExamination.Name, # Should be CT Planning
-                ToExaminationName = source_reg.FromExamination.Name,
-                RegistrationName = f"Image registration {source_reg.ToExamination.Name} - {source_reg.FromExamination.Name}",
-                Description = ""
+                    FromExaminationName = source_reg.ToExamination.Name, # Should be CT Planning
+                    ToExaminationName = source_reg.FromExamination.Name,
+                    RegistrationName = f"Image registration {source_reg.ToExamination.Name} - {source_reg.FromExamination.Name}",
+                    Description = ""
                 )
 
                 # Assign transformation matrix to new image registration
@@ -100,8 +99,16 @@ def copy_roi_geometries(case, mr_exam_name):
 
     # Get name of GTV ROI
     roi_names = case.PatientModel.RegionsOfInterest.keys()
-    gtv_rois = [name for name in roi_names if "GTV" in name]
+    gtv_rois = [name for name in roi_names if "GTV" in name.upper()]
     gtv_roi_name = gtv_rois[0] # Assume length one for gtv rois. i.e. assuming only one GTV ROI
+
+    # Get name of brain ROI
+    brain_rois = [name for name in roi_names if "BRAIN" == name.upper()]
+    brain_roi_name = brain_rois[0] # Assume length one for brain rois. i.e. assuming only one brain ROI
+
+    # Get name of external ROI
+    external_rois = [name for name in roi_names if "EXTERNAL" == name.upper()]
+    external_roi_name = external_rois[0] # Assume length one for external rois. i.e. assuming only one external ROI
 
     source_reg = [] # set to empty first
     # Check if registration from CT Planning to some MRI has already been made
@@ -115,7 +122,7 @@ def copy_roi_geometries(case, mr_exam_name):
 
     # Copy ROI geometries to MR scan
     case.PatientModel.CopyRoiGeometries(SourceExamination=case.Examinations['CT Planning'],
-                                    TargetExaminationNames=[f"{source_reg.ToExamination.Name}"], RoiNames=[gtv_roi_name, "Brain", "External"],
+                                    TargetExaminationNames=[f"{source_reg.ToExamination.Name}"], RoiNames=[gtv_roi_name, brain_roi_name, external_roi_name],
                                     ImageRegistrationNames=[f"Image registration CT Planning - {source_reg.ToExamination.Name}"],
                                     TargetExaminationNamesToSkipAddedReg=[])
     
@@ -278,11 +285,20 @@ def check_ct_planning(case):
                 print(f"Renamed '{exam.Name} to 'CT Planning'")
                 exam.Name = "CT Planning"
                 ct_planning = True
+
+                # Rename any image registration with the old name instead of CT Planning
+                ## RayStation changes these from and to names, so we take advantage of that
+                regs_to_rename = [reg for reg in case.RigidRegistrations if reg.FromExamination.Name == "CT Planning"
+                                    or reg.ToExamination.Name == "CT Planning"]
+                if regs_to_rename:
+                    print("Renaming registrations with old CT name...")
+                    for reg in regs_to_rename:
+                        reg.RenameImageRegistration(NewName = f"Image registration {reg.FromExamination.Name} - {reg.ToExamination.Name}")
                 break
         
         if not ct_planning:
             # Raise error if no CT scan found
             raise ValueError("No CT scan found.")
-        
+
     return case
     

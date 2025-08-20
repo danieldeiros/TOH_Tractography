@@ -1,9 +1,6 @@
 # Visualization functions
 
 ## Import necessary packages
-import os
-os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
 import nibabel as nib
 from dipy.viz import actor, colormap, has_fury, window
 import numpy as np
@@ -47,9 +44,9 @@ def show_tracts(base_dir):
         brain_mask_nii = nib.load(brain_mask_nii_path); brain_mask = brain_mask_nii.get_fdata()
         white_matter_mask_nii = nib.load(white_matter_mask_nii_path); white_matter_mask = white_matter_mask_nii.get_fdata()
 
-        # streamlines_actor_wm = actor.line(
-        #     streamlines_wm, colors=colormap.line_colors(streamlines_wm, cmap = "rgb_standard"), opacity=0.25
-        # )
+        streamlines_actor_wm = actor.line(
+            streamlines_wm, colors=colormap.line_colors(streamlines_wm, cmap = "rgb_standard"), opacity=0.25
+        )
 
         streamlines_actor_gtv = actor.line(
             streamlines_gtv, colors=colormap.line_colors(streamlines_gtv, cmap = "rgb_standard"), opacity=1
@@ -60,7 +57,7 @@ def show_tracts(base_dir):
         )
 
         wm_actor = actor.contour_from_roi(
-            white_matter_mask, affine=affine, opacity=0.25, color=(1,1,1) # white
+            white_matter_mask, affine=affine, opacity=0.75, color=(1,1,1) # white
         )
 
         # gtv_wm_actor = actor.contour_from_roi(
@@ -72,13 +69,13 @@ def show_tracts(base_dir):
         ) 
 
         brain_actor = actor.contour_from_roi(
-            brain_mask, affine=affine, opacity=0.5, color=(1, 0.753, 0.796) # pink
+            brain_mask, affine=affine, opacity=0.75, color=(1, 0.753, 0.796) # pink
         ) 
 
         # Create the 3D display.
         scene = window.Scene()
-        # scene.add(streamlines_actor_wm)
-        scene.add(streamlines_actor_gtv)
+        scene.add(streamlines_actor_wm)
+        # scene.add(streamlines_actor_gtv)
         scene.add(gtv_actor)
         # scene.add(wm_actor)
         # scene.add(gtv_wm_actor)
@@ -120,9 +117,6 @@ def show_tracts(base_dir):
         title_actor = actor.vector_text(text=title_text, pos= [0,125,125], scale = (25,25,25), direction=None, align_center=True, extrusion=5)
         scene.add(title_actor)
 
-        # Save still images for this static example. Or for interactivity use
-        # window.record(scene=scene, out_path="tractogram_EuDX.png", size=(800, 800))
-        # if interactive:
         window.show(scene)
 
 # Function to visualize WMPL map using fury
@@ -168,11 +162,11 @@ def show_wmpl(base_dir):
         ras_coords = nib.affines.apply_affine(wmpl_img.affine, voxel_coords) # affine from wmpl should be same as affines from before
 
         # Create a colormap for WMPL values
-        cmap = colormap.create_colormap(values, name='jet')
+        cmap = colormap.create_colormap(values, name='jet', auto=True)
 
         # Create a point cloud actor with colors
         points_actor = actor.point(
-            ras_coords, cmap, point_radius=slice_thickness, opacity=0.75 # voxels are 1.5 mm (from what ive seen) in x,y,z (isotropic)
+            ras_coords, cmap, point_radius=slice_thickness, opacity=0.1 # voxels are 1.5 mm (from what ive seen) in x,y,z (isotropic)
         ) 
 
         # Create actor for external
@@ -228,6 +222,5 @@ def show_wmpl(base_dir):
         scene.add(title_actor)
 
         # Show plot
-        # if interactive:
         window.show(scene)
         

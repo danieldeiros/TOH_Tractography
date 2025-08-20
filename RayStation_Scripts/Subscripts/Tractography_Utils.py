@@ -1,9 +1,6 @@
 # Tractography functions
 
 ## Import necessary packages
-import os
-os.environ["http_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
-os.environ["https_proxy"] = "http://dahernandez:34732b8f774d6def@ohswg.ottawahospital.on.ca:8080"
 import nibabel as nib
 from dipy.io import read_bvals_bvecs
 from dipy.core.gradients import gradient_table
@@ -29,7 +26,7 @@ import numpy as np
 
 # Function to extract data and perform segmentation
 def get_data(nifti_dir, fname):
-        # Define file names
+    # Define file names
     nifti_file = str(nifti_dir / (fname + ".nii.gz"))
     bval_file  = str(nifti_dir / (fname + ".bval"))
     bvec_file  = str(nifti_dir / (fname + ".bvec"))
@@ -98,7 +95,7 @@ def streamline_gen(seeds_wm, seeds_gtv, csa_peaks, stopping_criterion, affine):
     # Creating streamlines from all white matter and from GTV. First white matter.
     # Initialization of eudx_tracking. The computation happens in the next step.
     # eudx_tracking replaced with LocalTracking for older versions of DiPy
-    # Stuff has to be reordered! Also max_angle doesn't exist in LocalTracking
+    # For LocalTracking stuff has to be reordered! Also max_angle doesn't exist in LocalTracking
     streamlines_generator_wm = eudx_tracking(
         seeds_wm, stopping_criterion, affine, step_size=0.5, pam=csa_peaks, max_angle=60 # paper uses max_angle of 60
     )
@@ -124,7 +121,8 @@ def streamline_gen(seeds_wm, seeds_gtv, csa_peaks, stopping_criterion, affine):
 
     return streamlines_wm, streamlines_gtv
 
-def save_tracts(base_dir, streamlines_wm, hardi_img):
+# Save tracts in trk files
+def save_tracts(base_dir, streamlines_wm, streamlines_gtv, hardi_img):
     # Define/create folder and path
     trk_dir = base_dir / "Tracts"
     trk_dir.mkdir(parents=True, exist_ok=True) # make folder if it doesnt exist yet
@@ -134,6 +132,14 @@ def save_tracts(base_dir, streamlines_wm, hardi_img):
     sft = StatefulTractogram(streamlines_wm, hardi_img, Space.RASMM)
     save_trk(sft, str(trk_path), streamlines_wm)
 
+    # Define path for GTV version (i.e. only tracts connected to GTV)
+    trk_path_gtv = trk_dir / "tractogram_GTV_EuDX.trk"
+
+    # Define tractogram and save
+    sft_gtv = StatefulTractogram(streamlines_gtv, hardi_img, Space.RASMM)
+    save_trk(sft_gtv, str(trk_path_gtv), streamlines_gtv)
+
+# Load tracts from trk files
 def get_tracts(base_dir):
     # Define paths
     trk_dir = base_dir / "Tracts"

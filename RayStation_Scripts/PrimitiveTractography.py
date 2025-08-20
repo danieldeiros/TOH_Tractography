@@ -1,17 +1,15 @@
 # Adapting primitive tractography script to RayStation
 
 # Import necessary functions
-from Subscripts.Preliminaries import get_base_dir, check_nifti_folder, get_relevant_files, copy_relevant_files 
-from Subscripts.Preliminaries import dicom_to_nifti, get_fname, rs_get_paths, rs_get_info
+from Subscripts.Preliminaries import check_nifti_folder, get_relevant_files, copy_relevant_files 
+from Subscripts.Preliminaries import dicom_to_nifti, get_fname
 from Subscripts.Tractography_Utils import get_data, get_wm_mask, csa_and_sc, seed_gen, streamline_gen, save_tracts, get_tracts
 from Subscripts.RS_ROI_Utils import rs_folders, load_rois, roi_interp, get_white_matter_mask
 from Subscripts.WMPL_Utils import get_wmpl, save_wmpl_dicom
-from Subscripts.Visualization_Utils import show_tracts, show_wmpl
 
 # Import packages
 import zmq
 import json
-import pickle
 from pathlib import Path
 
 # Preliminaries
@@ -53,7 +51,7 @@ if not valid_folder: ## only proceed if NIfTI folder doesn't already contain nec
     relevant_files = get_relevant_files(base_dir)
 
     # Copy relevant diffusion MRIs to a new folder
-    print("Copying relavant files to a new folder...")
+    print("Copying relevant files to a new folder...")
     dicom_dir = copy_relevant_files(base_dir, relevant_files) # return output DICOM folder
 
     # Convert DICOM files to NIfTI
@@ -117,14 +115,13 @@ if not tracts_flag:
 
     ## Save tracts
     print("Saving tracts...")
-    save_tracts(base_dir, streamlines_wm, hardi_img)
+    save_tracts(base_dir, streamlines_wm, streamlines_gtv, hardi_img)
     print("Tracts successfully saved.")
 
 ## Show tracts
 if interactive:
     print("Showing tracts...")
-    data_socket.send_multipart([ds_identity, b'', b'Show Fury']) # Send message over via socket
-    received_flag = False # set flag to false until we receive confirmation from the server that the client has closed the Fury window
+    data_socket.send_multipart([ds_identity, b'', b'Show Fury - Tracts']) # Send message over via socket
 
 # WMPL
 
@@ -138,26 +135,8 @@ print("WMPL map saved as DICOM successfully")
 
 ## Show WMPL map
 if interactive:
-    # Wait till we receive confirmation from client that the Fury window has been closed
-    while not received_flag:
-        if dict(poller.poll(timeout=3000)):
-            ds_identity, _, message = data_socket.recv_multipart() # receive string
-            message = message.decode()
-            if message == "Data received. Fury window closed":
-                received_flag = True
-                break
 
     print("Showing WMPL map...")
-    data_socket.send_multipart([ds_identity, b'', b'Show Fury']) # Send message over via socket
-    received_flag = False # set flag to false until we receive confirmation from the server that the client has closed the Fury window
-
-    # Wait till we receive confirmation from client that the Fury window has been closed
-    while not received_flag:
-        if dict(poller.poll(timeout=3000)):
-            ds_identity, _, message = data_socket.recv_multipart() # receive string
-            message = message.decode()
-            if message == "Data received. Fury window closed":
-                received_flag = True
-                break
+    data_socket.send_multipart([ds_identity, b'', b'Show Fury - WMPL']) # Send message over via socket
 
 print("Program successfully completed.")
