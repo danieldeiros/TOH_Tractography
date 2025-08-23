@@ -1,0 +1,1 @@
+This repo contains several scripts in Python to perform tractography given dMRI data and then create subsequent CTVs in RayStation. The current implementation is very basic, adequate for small datasets of about 20 gradients. Further research is being conducted at The Ottawa Hospital Cancer Centre. A user manual is provided for those interested. 
